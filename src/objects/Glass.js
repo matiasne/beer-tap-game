@@ -128,7 +128,9 @@ export default class Glass extends Phaser.GameObjects.Container {
 
     if (pouring) {
       this.fillLevel += pourRatePerSecond * dt;
-      this.foamLevel += F.growthPerSecond * foamGrowthMultiplier * dt;
+      const shapeFoamFactor = this.shape.foamFactor ?? 1;
+      this.foamLevel +=
+        F.growthPerSecond * foamGrowthMultiplier * shapeFoamFactor * dt;
     } else if (this.foamLevel > 0) {
       const shrink = Math.min(this.foamLevel, F.settlePerSecond * dt);
       this.foamLevel -= shrink;
@@ -491,6 +493,27 @@ export default class Glass extends Phaser.GameObjects.Container {
             this.destroy();
           },
         });
+      },
+    });
+  }
+
+  /**
+   * Time-up exit: drop straight down past the bottom of the canvas as the
+   * bartender clears all glasses at once.
+   */
+  releaseDown(onDone) {
+    if (this.released) return;
+    this.released = true;
+
+    this.scene.tweens.add({
+      targets: this,
+      y: this.y + 200,
+      alpha: 0,
+      duration: GAME_CONFIG.glassReleaseDuration,
+      ease: 'Cubic.in',
+      onComplete: () => {
+        if (onDone) onDone();
+        this.destroy();
       },
     });
   }

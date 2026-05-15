@@ -179,7 +179,12 @@ export default class GameScene extends Phaser.Scene {
       const glass = this.glasses[i];
       if (tap?.isPouring) tap.stopPour();
       if (glass && !glass.released) {
-        this.releaseGlass(i);
+        // Time-up: all cups drop straight down off the bar (no scoring,
+        // no respawn — the level is over).
+        this.idleMs[i] = null;
+        this.idleBars[i]?.setVisible(false);
+        glass.releaseDown();
+        this.glasses[i] = null;
       }
     }
 

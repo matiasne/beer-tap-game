@@ -27,6 +27,7 @@ const bell = (t, c, w, peak) => {
 
 export const GLASS_SHAPES = [
   // 1) PINT — slight outward taper toward the top. Classic.
+  // Baseline foam behavior.
   {
     key: 'pint',
     label: 'Pint',
@@ -37,10 +38,12 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: false,
+    foamFactor: 1.0,
     widthProfile: (t) => lerp(0.78, 1.0, t),
   },
 
   // 2) PILSNER — tall narrow, gentle taper. Wider at top than bottom.
+  // Narrow surface area lets gas escape slowly → less foam.
   {
     key: 'pilsner',
     label: 'Pilsner',
@@ -51,10 +54,12 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: false,
+    foamFactor: 0.7,
     widthProfile: (t) => lerp(0.6, 1.0, t),
   },
 
   // 3) MUG / STEIN — straight cylinder, with a handle on the right.
+  // Average surface, average foam.
   {
     key: 'mug',
     label: 'Stein',
@@ -65,10 +70,12 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: true,
+    foamFactor: 1.0,
     widthProfile: () => 1.0,
   },
 
   // 4) TULIP — narrow rim, bulge in the middle-upper, narrow base.
+  // Curved bulge traps foam → more head.
   {
     key: 'tulip',
     label: 'Tulip',
@@ -79,6 +86,7 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: false,
+    foamFactor: 1.4,
     widthProfile: (t) => {
       // narrow at top, bulge ~0.55, narrow at bottom
       const base = 0.5 + 0.35 * Math.sin(Math.PI * t); // arches 0.5→0.85→0.5
@@ -88,6 +96,7 @@ export const GLASS_SHAPES = [
   },
 
   // 5) SNIFTER — wide round bowl bottom, sharply narrows near the top.
+  // Wide bowl agitates the pour, narrow neck concentrates foam.
   {
     key: 'snifter',
     label: 'Snifter',
@@ -98,6 +107,7 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: false,
+    foamFactor: 1.3,
     widthProfile: (t) => {
       // wide bowl (0..0.6), narrow neck (0.6..1)
       if (t < 0.6) return 0.85 + bell(t, 0.3, 0.3, 0.15);
@@ -107,6 +117,7 @@ export const GLASS_SHAPES = [
   },
 
   // 6) WEIZEN — tall, narrow waist around 1/3, wider top & bottom.
+  // Iconic foam-builder — the flared top is designed to pile head.
   {
     key: 'weizen',
     label: 'Weizen',
@@ -117,6 +128,7 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: false,
+    foamFactor: 1.5,
     widthProfile: (t) => {
       // waist at t≈0.35, fat top
       const base = lerp(0.7, 1.0, t); // gradual widen
@@ -126,6 +138,7 @@ export const GLASS_SHAPES = [
   },
 
   // 7) GOBLET — wide bowl with a short stem look (just visual; fill is bowl only).
+  // Wide rounded bowl, foam grows quickly.
   {
     key: 'goblet',
     label: 'Goblet',
@@ -137,6 +150,7 @@ export const GLASS_SHAPES = [
     bottomPaddingPx: 16, // taller bottom padding makes room for the stem+foot
     handle: false,
     stem: true,
+    foamFactor: 1.25,
     widthProfile: (t) => {
       // wide rounded bowl
       const k = Math.sin(Math.PI * (0.2 + 0.6 * t));
@@ -145,6 +159,7 @@ export const GLASS_SHAPES = [
   },
 
   // 8) FLUTE — very narrow, gentle taper outward at top.
+  // Tiny surface area: barely any foam at all.
   {
     key: 'flute',
     label: 'Flute',
@@ -155,6 +170,7 @@ export const GLASS_SHAPES = [
     topPaddingPx: 4,
     bottomPaddingPx: 6,
     handle: false,
+    foamFactor: 0.55,
     widthProfile: (t) => lerp(0.7, 1.0, t),
   },
 ];

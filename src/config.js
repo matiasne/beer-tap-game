@@ -7,7 +7,7 @@ export const GAME_CONFIG = {
 
   // Foam simulation
   foam: {
-    growthPerSecond: 28, // foam added per second while pouring (% of total volume)
+    growthPerSecond: 38, // foam added per second while pouring (% of total volume)
     settlePerSecond: 6, // foam shrink rate per second when idle
     settleToLiquidRatio: 0.5, // fraction of settled foam that converts back to liquid
     idealMinPct: 8, // % foam relative to liquid for perfect head
@@ -18,7 +18,7 @@ export const GAME_CONFIG = {
     // pouring technique.
     featherWindowMs: 300,
     featherEffectMs: 500,
-    featherFoamMultiplier: 0.7,
+    featherFoamMultiplier: 0.2,
   },
 
   // Scoring zones (based on liquid+foam total volume)

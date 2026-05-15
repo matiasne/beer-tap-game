@@ -40,10 +40,21 @@ export default class Client extends Phaser.GameObjects.Container {
     this.body.setScale(C.queueScale);
     this.add(this.body);
 
-    // Preference icon — mini glass pictogram colored to the wanted beer.
+    // Speech bubble + preference icon — a chat bubble that holds a mini
+    // glass pictogram colored to the wanted beer. Bubble only shown for the
+    // front client (applyQueueSlot toggles visibility).
+    const iconX = -14;
+    const iconY = -28 * C.queueScale - 16 - 10;
+    this.prefBubble = scene.add.image(iconX, iconY, 'chat_bubble');
+    // Origin: x centered, y at the visual centre of the bubble interior
+    // (not the texture centre, since the tail adds 6px to the bottom).
+    this.prefBubble.setOrigin(0.5, 11 / 28);
+    this.prefBubble.setScale(1.4);
+    this.add(this.prefBubble);
+
     this.prefIcon = scene.add.image(
-      -14,
-      -28 * C.queueScale - 16 - 10,
+      iconX,
+      iconY,
       prefIconKey(this.preference, this.wantedBeerStyle),
     );
     this.prefIcon.setOrigin(0.5, 0.5);
@@ -102,12 +113,14 @@ export default class Client extends Phaser.GameObjects.Container {
 
     // Hide tip text + patience bar for non-front clients to reduce clutter,
     // but keep the preference icon visible so the player can plan ahead.
+    // The chat bubble around the icon only shows on the front client.
     const isFront = slotIndex === 0;
     this.tipText.setVisible(isFront);
     this.patienceBar.setVisible(isFront);
     this.patienceBarBg.setVisible(isFront);
     this.prefIcon.setVisible(true);
     this.prefIcon.setScale(isFront ? 1.4 : 1.0);
+    this.prefBubble.setVisible(isFront);
 
     this.setDepth(100 - slotIndex); // front draws on top
 

@@ -3,14 +3,17 @@ import { GLASS_SHAPES } from '../glassShapes.js';
 import { CLIENT_PREFERENCES } from '../clientPreferences.js';
 import { BEER_STYLES } from '../beerStyles.js';
 
-// Client palette variants (skin, hair, shirt). Indices map to client_0..client_N keys.
+// Client palette variants (skin, hair, shirt). Each can also carry a small
+// accessory and a hair style hint that makes them more distinct.
+// hairStyle: 'parted' | 'swept' | 'messy' | 'flat'
+// accessory: null | 'cap' | 'beanie' | 'bandana' | 'glasses'
 export const CLIENT_VARIANTS = [
-  { skin: 0xe8c39a, hair: 0x3a2418, shirt: 0xc33a3a },
-  { skin: 0xc99172, hair: 0x1a1a1a, shirt: 0x2a6acc },
-  { skin: 0xf2d6b3, hair: 0xd9a64a, shirt: 0x2a8a3a },
-  { skin: 0x9c6a4a, hair: 0x2a1a10, shirt: 0xd9a64a },
-  { skin: 0xe8c39a, hair: 0x5a3a24, shirt: 0x6a3aa8 },
-  { skin: 0xc99172, hair: 0xb84a24, shirt: 0x3a3a3a },
+  { skin: 0xe8c39a, hair: 0x3a2418, shirt: 0xc33a3a, hairStyle: 'parted', accessory: null },
+  { skin: 0xc99172, hair: 0x1a1a1a, shirt: 0x2a6acc, hairStyle: 'flat',   accessory: 'cap' },
+  { skin: 0xf2d6b3, hair: 0xd9a64a, shirt: 0x2a8a3a, hairStyle: 'swept',  accessory: null },
+  { skin: 0x9c6a4a, hair: 0x2a1a10, shirt: 0xd9a64a, hairStyle: 'messy',  accessory: 'bandana' },
+  { skin: 0xe8c39a, hair: 0x5a3a24, shirt: 0x6a3aa8, hairStyle: 'parted', accessory: 'glasses' },
+  { skin: 0xc99172, hair: 0xb84a24, shirt: 0x3a3a3a, hairStyle: 'messy',  accessory: 'beanie' },
 ];
 
 /**
@@ -49,6 +52,9 @@ export default class BootScene extends Phaser.Scene {
 
     // Client body variants — different skin/hair/shirt combos so the queue looks varied.
     CLIENT_VARIANTS.forEach((variant, i) => this.makeClient(`client_${i}`, variant));
+
+    // Speech bubble background for the "wants this beer" indicator.
+    this.makeChatBubble('chat_bubble');
 
     // Client-preference icons — one per (pref × beer style) combo so the
     // icon liquid color matches the desired beer.
@@ -305,64 +311,193 @@ export default class BootScene extends Phaser.Scene {
     g.destroy();
   }
 
-  // Client portrait: head + torso + arms leaning on the bar. 20x28 px.
-  // Anchored so the bottom of the texture aligns with the bar edge.
+  /**
+   * Client portrait: head + torso + arms leaning on the bar. 20x28 px,
+   * bottom-anchored to the bar edge. Adds per-variant hair styles,
+   * optional accessories (cap, beanie, bandana, glasses), facial features
+   * (eyebrows, nose, mouth, ear), and a tiny ground shadow under the torso.
+   */
   makeClient(key, variant) {
     const w = 20;
     const h = 28;
     const g = this.add.graphics();
 
-    const { skin, hair, shirt } = variant;
+    const { skin, hair, shirt, hairStyle = 'parted', accessory = null } = variant;
     const shirtDark = darken(shirt, 0.7);
+    const shirtLight = lighten(shirt, 1.2);
     const skinShadow = darken(skin, 0.8);
+    const skinHighlight = lighten(skin, 1.08);
     const hairLight = lighten(hair, 1.25);
+    const hairDark = darken(hair, 0.7);
 
-    // Torso (lower portion — sits on the bar)
+    // --- Ground shadow (floor contact under the torso) ---
+    g.fillStyle(0x000000, 0.35);
+    g.fillRect(3, h - 1, w - 6, 1);
+
+    // --- Torso block (sits on the bar) ---
     g.fillStyle(shirt, 1);
     g.fillRect(3, 16, w - 6, h - 16);
+    // top-of-shoulder highlight
+    g.fillStyle(shirtLight, 1);
+    g.fillRect(4, 16, w - 8, 1);
+    // side shadows
     g.fillStyle(shirtDark, 1);
-    g.fillRect(3, 16, 2, h - 16); // left shadow
-    g.fillRect(w - 5, 16, 2, h - 16); // right shadow
-    // Collar / neckline
+    g.fillRect(3, 16, 1, h - 16); // left shadow
+    g.fillRect(w - 4, 16, 1, h - 16); // right shadow
+    // Placket / button line down the centre + 2 buttons
+    g.fillStyle(shirtDark, 1);
+    g.fillRect(9, 18, 1, h - 18);
+    g.fillStyle(shirtLight, 1);
+    g.fillRect(9, 20, 1, 1);
+    g.fillRect(9, 24, 1, 1);
+    // Collar / neckline notch
     g.fillStyle(shirtDark, 1);
     g.fillRect(8, 16, 4, 2);
+    g.fillStyle(darken(shirt, 0.5), 1);
+    g.fillRect(9, 17, 2, 1);
 
-    // Arms resting on the bar (extending slightly outside the torso width)
+    // --- Arms resting on the bar ---
     g.fillStyle(shirt, 1);
-    g.fillRect(1, 18, 2, 6);
-    g.fillRect(w - 3, 18, 2, 6);
+    g.fillRect(1, 18, 2, 6); // left arm
+    g.fillRect(w - 3, 18, 2, 6); // right arm
+    // arm shadow on the underside
+    g.fillStyle(shirtDark, 1);
+    g.fillRect(1, 23, 2, 1);
+    g.fillRect(w - 3, 23, 2, 1);
+    // cuffs (lighter band at the wrist)
+    g.fillStyle(shirtLight, 1);
+    g.fillRect(1, 22, 2, 1);
+    g.fillRect(w - 3, 22, 2, 1);
     // Hands
     g.fillStyle(skin, 1);
     g.fillRect(1, 24, 2, 2);
     g.fillRect(w - 3, 24, 2, 2);
+    // tiny thumb pixel curling inward (gripping the bar edge)
+    g.fillStyle(skinShadow, 1);
+    g.fillRect(2, 25, 1, 1);
+    g.fillRect(w - 3, 25, 1, 1);
 
-    // Neck
+    // --- Neck ---
     g.fillStyle(skin, 1);
     g.fillRect(8, 13, 4, 3);
     g.fillStyle(skinShadow, 1);
-    g.fillRect(8, 15, 4, 1);
+    g.fillRect(8, 15, 4, 1); // neck-to-collar shadow
+    g.fillRect(11, 13, 1, 2); // right side neck shadow
 
-    // Head (round-ish 8x8)
+    // --- Head (8x8 with shaded corner pixels to fake rounded silhouette) ---
     g.fillStyle(skin, 1);
     g.fillRect(6, 5, 8, 8);
     g.fillStyle(skinShadow, 1);
-    g.fillRect(6, 12, 8, 1); // chin shadow
-    g.fillRect(13, 6, 1, 6); // right side shadow
+    g.fillRect(6, 5, 1, 1); // top-left bevel
+    g.fillRect(13, 5, 1, 1); // top-right bevel
+    g.fillRect(6, 12, 1, 1); // bottom-left bevel (jaw)
+    g.fillRect(13, 12, 1, 1); // bottom-right bevel (jaw)
+    // Cheek/face highlight on the left
+    g.fillStyle(skinHighlight, 1);
+    g.fillRect(7, 8, 1, 2);
+    // Right side overall shadow
+    g.fillStyle(skinShadow, 1);
+    g.fillRect(12, 6, 1, 6);
+    // Chin shadow (under jaw)
+    g.fillRect(7, 12, 6, 1);
+    // Ear bump on the right side
+    g.fillStyle(skin, 1);
+    g.fillRect(14, 8, 1, 2);
+    g.fillStyle(skinShadow, 1);
+    g.fillRect(14, 9, 1, 1);
 
-    // Hair (cap on top of head)
-    g.fillStyle(hair, 1);
-    g.fillRect(6, 3, 8, 4);
-    g.fillRect(5, 4, 1, 3); // left sideburn
-    g.fillRect(14, 4, 1, 3); // right sideburn
-    g.fillStyle(hairLight, 1);
-    g.fillRect(7, 3, 4, 1); // top highlight
+    // --- Hair (style varies per-variant) ---
+    drawHair(g, hairStyle, hair, hairLight, hairDark);
 
-    // Eyes
+    // --- Eyebrows ---
+    g.fillStyle(hairDark, 1);
+    g.fillRect(8, 8, 1, 1);
+    g.fillRect(11, 8, 1, 1);
+
+    // --- Eyes ---
     g.fillStyle(0x1a1a1a, 1);
     g.fillRect(8, 9, 1, 1);
     g.fillRect(11, 9, 1, 1);
 
+    // --- Nose (single pixel shadow between/under the eyes) ---
+    g.fillStyle(skinShadow, 1);
+    g.fillRect(9, 10, 1, 1);
+
+    // --- Mouth (slight smirk, offset right of center) ---
+    g.fillStyle(0x4a2a1a, 1);
+    g.fillRect(9, 11, 2, 1);
+
+    // --- Accessory (drawn on top of head/hair) ---
+    drawAccessory(g, accessory, hair, hairLight, hairDark);
+
     g.generateTexture(key, w, h);
+    g.destroy();
+  }
+
+  /**
+   * Speech bubble background for the preference icon. Cream-white fill,
+   * dark outline, rounded corners (corners knocked off pixel-style), with
+   * a small downward-pointing tail at the bottom-left. Sized to wrap the
+   * 18x20 preference icon with a 1px padding margin.
+   */
+  makeChatBubble(key) {
+    const W = 28;
+    const H = 28; // 22 bubble + 6 tail
+    const bubbleH = 22;
+    const fill = 0xfff4d6;
+    const fillLight = 0xffffff;
+    const outline = 0x2a1f14;
+    const shadow = 0xd9c89a;
+
+    const g = this.add.graphics();
+
+    // Solid fill (rounded by knocking out the 4 corner pixels after).
+    g.fillStyle(fill, 1);
+    g.fillRect(1, 1, W - 2, bubbleH - 2);
+
+    // Outline (top, bottom, left, right). Skip the 4 corner pixels for round look.
+    g.fillStyle(outline, 1);
+    g.fillRect(2, 0, W - 4, 1); // top
+    g.fillRect(2, bubbleH - 1, W - 4, 1); // bottom
+    g.fillRect(0, 2, 1, bubbleH - 4); // left
+    g.fillRect(W - 1, 2, 1, bubbleH - 4); // right
+    // corner step pixels (one in, one down from each corner)
+    g.fillRect(1, 1, 1, 1);
+    g.fillRect(W - 2, 1, 1, 1);
+    g.fillRect(1, bubbleH - 2, 1, 1);
+    g.fillRect(W - 2, bubbleH - 2, 1, 1);
+
+    // Inner top highlight (gives the bubble a glossy plastic feel).
+    g.fillStyle(fillLight, 1);
+    g.fillRect(2, 1, W - 4, 1);
+    g.fillRect(1, 2, 1, 1);
+    g.fillRect(W - 2, 2, 1, 1);
+
+    // Inner bottom shadow.
+    g.fillStyle(shadow, 1);
+    g.fillRect(2, bubbleH - 2, W - 4, 1);
+
+    // Tail — pointing down-left toward the speaker. Outline + fill.
+    // Triangle approximated by stacked rects, tip at (5, bubbleH + 5).
+    g.fillStyle(outline, 1);
+    g.fillRect(6, bubbleH, 5, 1);
+    g.fillRect(5, bubbleH + 1, 5, 1);
+    g.fillRect(4, bubbleH + 2, 4, 1);
+    g.fillRect(3, bubbleH + 3, 3, 1);
+    g.fillRect(3, bubbleH + 4, 2, 1);
+    g.fillRect(3, bubbleH + 5, 1, 1);
+    // Fill inside the tail
+    g.fillStyle(fill, 1);
+    g.fillRect(7, bubbleH, 3, 1);
+    g.fillRect(6, bubbleH + 1, 3, 1);
+    g.fillRect(5, bubbleH + 2, 2, 1);
+    g.fillRect(4, bubbleH + 3, 1, 1);
+    // Erase the outline pixels that sit right under where the tail meets
+    // the bubble so the join reads as continuous interior.
+    g.fillStyle(fill, 1);
+    g.fillRect(6, bubbleH - 1, 4, 1);
+
+    g.generateTexture(key, W, H);
     g.destroy();
   }
 
@@ -451,4 +586,121 @@ function lighten(color, factor) {
   const g = Math.min(255, Math.floor(((color >> 8) & 0xff) * factor));
   const b = Math.min(255, Math.floor((color & 0xff) * factor));
   return (r << 16) | (g << 8) | b;
+}
+
+// Hair silhouettes drawn over the 8x8 head at (6..13, 5..12). Each style
+// shapes the front/top differently so different clients read as distinct.
+function drawHair(g, style, hair, hairLight, hairDark) {
+  // Common cap + sideburns
+  g.fillStyle(hair, 1);
+  g.fillRect(6, 3, 8, 4); // top cap
+  g.fillRect(5, 4, 1, 3); // left sideburn
+  g.fillRect(14, 4, 1, 3); // right sideburn (drawn over ear shadow)
+
+  if (style === 'parted') {
+    // Side part — small forehead gap on the right, highlight on left side
+    g.fillStyle(hairDark, 1);
+    g.fillRect(10, 6, 3, 1); // dark band at hairline (right half)
+    g.fillStyle(hairLight, 1);
+    g.fillRect(7, 3, 3, 1);
+  } else if (style === 'swept') {
+    // Swept forward — a forelock dropping over the brow on the left
+    g.fillStyle(hair, 1);
+    g.fillRect(7, 6, 2, 1); // forelock
+    g.fillStyle(hairLight, 1);
+    g.fillRect(7, 3, 5, 1);
+  } else if (style === 'messy') {
+    // Asymmetric tufts on top
+    g.fillStyle(hair, 1);
+    g.fillRect(6, 2, 1, 1);
+    g.fillRect(8, 2, 1, 1);
+    g.fillRect(11, 2, 1, 1);
+    g.fillRect(13, 2, 1, 1);
+    g.fillStyle(hairLight, 1);
+    g.fillRect(7, 3, 2, 1);
+    g.fillRect(11, 3, 2, 1);
+  } else if (style === 'flat') {
+    // Buzz/flat — keep the cap but no highlights, slightly shorter forehead
+    g.fillStyle(hairDark, 1);
+    g.fillRect(6, 6, 8, 1);
+  } else {
+    g.fillStyle(hairLight, 1);
+    g.fillRect(7, 3, 4, 1);
+  }
+}
+
+// Optional accessory drawn over hair. Keeps within the head bounds so it
+// doesn't bleed into the torso.
+function drawAccessory(g, accessory, hair, hairLight, hairDark) {
+  if (!accessory) return;
+
+  if (accessory === 'cap') {
+    // Baseball cap — dome crown + brim jutting out to the left.
+    const crown = 0x2a2a2a;
+    const crownLight = 0x4a4a4a;
+    g.fillStyle(crown, 1);
+    g.fillRect(6, 3, 8, 3); // crown body
+    g.fillRect(5, 5, 1, 1); // left edge
+    g.fillStyle(crownLight, 1);
+    g.fillRect(7, 3, 5, 1); // top highlight
+    // brim — 1px thick, extends left of the head
+    g.fillStyle(crown, 1);
+    g.fillRect(2, 6, 5, 1);
+    g.fillStyle(crownLight, 1);
+    g.fillRect(2, 6, 1, 1); // brim tip highlight
+    // button on top
+    g.fillStyle(0x8a3a3a, 1);
+    g.fillRect(9, 2, 1, 1);
+  } else if (accessory === 'beanie') {
+    // Knit beanie — covers the cap, fold band at the bottom.
+    const beanie = 0x6a3a2a;
+    const beanieLight = 0x8a5a3a;
+    const beanieDark = 0x4a2418;
+    g.fillStyle(beanie, 1);
+    g.fillRect(6, 2, 8, 5);
+    g.fillRect(5, 4, 1, 3);
+    g.fillRect(14, 4, 1, 3);
+    g.fillStyle(beanieLight, 1);
+    g.fillRect(7, 2, 5, 1); // top knit highlight
+    g.fillRect(6, 4, 1, 1);
+    g.fillStyle(beanieDark, 1);
+    g.fillRect(6, 6, 8, 1); // fold band
+    // tiny pom
+    g.fillStyle(beanieLight, 1);
+    g.fillRect(9, 1, 2, 1);
+  } else if (accessory === 'bandana') {
+    // Bandana tied around forehead — band across the hairline.
+    const cloth = 0xc33a3a;
+    const clothLight = 0xe85a5a;
+    const clothDark = 0x8a1a1a;
+    g.fillStyle(cloth, 1);
+    g.fillRect(6, 6, 8, 2);
+    g.fillStyle(clothLight, 1);
+    g.fillRect(6, 6, 8, 1);
+    g.fillStyle(clothDark, 1);
+    g.fillRect(6, 7, 1, 1);
+    // knot tail on the right side
+    g.fillStyle(cloth, 1);
+    g.fillRect(14, 6, 1, 1);
+    g.fillStyle(clothDark, 1);
+    g.fillRect(14, 7, 1, 1);
+  } else if (accessory === 'glasses') {
+    // Round-ish glasses — frames over the eyes, bridge in the middle.
+    const frame = 0x2a1a10;
+    g.fillStyle(frame, 1);
+    // left lens
+    g.fillRect(7, 9, 3, 1);
+    g.fillRect(7, 8, 1, 2);
+    g.fillRect(9, 8, 1, 2);
+    // right lens
+    g.fillRect(10, 9, 3, 1);
+    g.fillRect(10, 8, 1, 2);
+    g.fillRect(12, 8, 1, 2);
+    // bridge
+    g.fillRect(10, 9, 1, 1);
+    // a tiny reflection in each lens
+    g.fillStyle(0xffffff, 0.7);
+    g.fillRect(8, 9, 1, 1);
+    g.fillRect(11, 9, 1, 1);
+  }
 }
