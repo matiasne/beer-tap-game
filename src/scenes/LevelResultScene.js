@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
 import { FONT_FAMILY } from '../textStyle.js';
+import { qualifies } from '../scoreboard.js';
 
 /**
  * Post-level screen.
@@ -110,6 +111,14 @@ export default class LevelResultScene extends Phaser.Scene {
   }
 
   backToMenu() {
+    // Game over: if the cumulative score earns a slot, capture a name first.
+    if (qualifies(this.score)) {
+      this.scene.start('NameEntryScene', {
+        score: this.score,
+        level: this.level,
+      });
+      return;
+    }
     this.scene.start('MenuScene');
   }
 }

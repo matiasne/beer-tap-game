@@ -2,12 +2,15 @@ import Phaser from 'phaser';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
 import { FONT_FAMILY } from '../textStyle.js';
 
+const ATTRACT_IDLE_MS = 15000;
+
 export default class MenuScene extends Phaser.Scene {
   constructor() {
     super('MenuScene');
   }
 
   create() {
+    this.idleMs = 0;
     // Backdrop — same warm dark tone as the bar.
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1612, 1);
@@ -65,6 +68,13 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5, 1);
 
     onAnyTapKey(this, () => this.startGame());
+  }
+
+  update(_time, delta) {
+    this.idleMs += delta;
+    if (this.idleMs >= ATTRACT_IDLE_MS) {
+      this.scene.start('ScoreboardScene', { attract: true });
+    }
   }
 
   startGame() {

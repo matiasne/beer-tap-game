@@ -4,6 +4,8 @@ import MenuScene from './scenes/MenuScene.js';
 import LevelIntroScene from './scenes/LevelIntroScene.js';
 import GameScene from './scenes/GameScene.js';
 import LevelResultScene from './scenes/LevelResultScene.js';
+import NameEntryScene from './scenes/NameEntryScene.js';
+import ScoreboardScene from './scenes/ScoreboardScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -12,7 +14,15 @@ const config = {
   height: 600,
   pixelArt: true,
   backgroundColor: '#1a1612',
-  scene: [BootScene, MenuScene, LevelIntroScene, GameScene, LevelResultScene],
+  scene: [
+    BootScene,
+    MenuScene,
+    LevelIntroScene,
+    GameScene,
+    LevelResultScene,
+    NameEntryScene,
+    ScoreboardScene,
+  ],
 };
 
 // Wait for the pixel font to be ready before booting so the very first

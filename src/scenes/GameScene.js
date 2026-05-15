@@ -81,6 +81,17 @@ export default class GameScene extends Phaser.Scene {
     // Input — keys 1..4.
     this.keys = this.input.keyboard.addKeys(KEY_NAMES.join(','));
 
+    // Dev shortcut: press G to instantly force a game over. Useful for
+    // testing the name-entry / scoreboard flow without playing a full level.
+    // Bumps score so qualifies() passes; bumps target so passed=false.
+    this.input.keyboard.on('keydown-G', () => {
+      if (this.timeUp) return;
+      this.score = Math.max(this.score, 1000);
+      this.target = this.score + 1;
+      this.timeRemainingMs = 0;
+      this.handleTimeUp();
+    });
+
     // HUD — top-left: score / target. Top-right: level + time remaining.
     this.hudText = this.add.text(16, 12, '', {
       fontFamily: FONT_FAMILY,
