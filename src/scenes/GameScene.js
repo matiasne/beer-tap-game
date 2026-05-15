@@ -74,7 +74,6 @@ export default class GameScene extends Phaser.Scene {
       this.taps.push(tap);
       this.glasses.push(glass);
       this.queues.push(queue);
-      this.drawStyleLabel(x, GAME_CONFIG.glassY + 75, style);
       const idleBar = this.add.graphics();
       idleBar.setVisible(false);
       this.idleBars.push(idleBar);
@@ -202,18 +201,6 @@ export default class GameScene extends Phaser.Scene {
     bar.fillRect(0, GAME_CONFIG.glassY + 100, 800, 8);
     bar.fillStyle(0x1a120a, 1);
     bar.fillRect(0, GAME_CONFIG.glassY + 108, 800, 80);
-  }
-
-  drawStyleLabel(x, y, style) {
-    const color = '#' + style.handleHighlight.toString(16).padStart(6, '0');
-    const txt = this.add.text(x, y, style.label, {
-      fontFamily: FONT_FAMILY,
-      fontSize: '14px',
-      color,
-      stroke: '#1a120a',
-      strokeThickness: 3,
-    });
-    txt.setOrigin(0.5, 0.5);
   }
 
   update(_time, delta) {
