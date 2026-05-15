@@ -31,7 +31,7 @@ export default class NameEntryScene extends Phaser.Scene {
     bg.fillRect(0, 0, 800, 600);
 
     // Headline
-    this.add.text(400, 90, 'NEW HIGH SCORE!', {
+    this.add.text(400, 90, '¡NUEVO RÉCORD!', {
       fontFamily: FONT_FAMILY,
       fontSize: '40px',
       color: '#ffd93d',
@@ -39,14 +39,14 @@ export default class NameEntryScene extends Phaser.Scene {
       strokeThickness: 6,
     }).setOrigin(0.5, 0.5);
 
-    this.add.text(400, 140, `Score: $${this.score}  ·  Level ${this.level}`, {
+    this.add.text(400, 140, `Puntaje: $${this.score}  ·  Nivel ${this.level}`, {
       fontFamily: FONT_FAMILY,
       fontSize: '18px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
 
     // Instructions
-    this.add.text(400, 180, 'TAP 1 / 2 / 3 / 4 TO CYCLE EACH LETTER', {
+    this.add.text(400, 180, 'TOCÁ 1 / 2 / 3 / 4 PARA CAMBIAR CADA LETRA', {
       fontFamily: FONT_FAMILY,
       fontSize: '14px',
       color: '#8a7a55',
@@ -115,7 +115,7 @@ export default class NameEntryScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5);
 
     // Footer prompt
-    this.add.text(400, 540, 'wait for timer to submit · default AAAA', {
+    this.add.text(400, 540, 'esperá al timer para confirmar · por defecto AAAA', {
       fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#6a5a3d',

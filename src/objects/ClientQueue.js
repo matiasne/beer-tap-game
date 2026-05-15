@@ -22,6 +22,13 @@ export default class ClientQueue {
     this.clients = []; // index 0 = front
     this.nextSpawnAt = scene.time.now + C.initialSpawnDelayMs;
     this.angryCb = null;
+    // Idle-chatter scheduler — back clients occasionally turn to each other
+    // and play a short talking animation so the queue feels alive. Only the
+    // back clients (slot >= 1) chat; the front client stays focused on the
+    // tap. State: { speakerIdx, ms } tracks the active conversation; null
+    // when nobody is chatting.
+    this.chatter = null;
+    this.nextChatterAt = scene.time.now + Phaser.Math.Between(2000, 5000);
   }
 
   onAngryLeave(cb) {
@@ -33,13 +40,13 @@ export default class ClientQueue {
   }
 
   update(deltaMs) {
-    // Tick patience for everyone (only the front actually drains visibly,
-    // but back clients lose patience too — they spawned earlier, they wait).
-    for (let i = this.clients.length - 1; i >= 0; i--) {
-      const c = this.clients[i];
-      const expired = c.updatePatience(deltaMs);
+    // Only the front client loses patience — back clients wait without
+    // draining so they don't expire while stuck behind a slow pour.
+    const front = this.clients[0];
+    if (front) {
+      const expired = front.updatePatience(deltaMs);
       if (expired) {
-        this.removeClient(i, /* angry */ true);
+        this.removeClient(0, /* angry */ true);
       }
     }
 
@@ -50,6 +57,51 @@ export default class ClientQueue {
         this.scene.time.now +
         Phaser.Math.Between(C.spawnMinDelayMs, C.spawnMaxDelayMs);
     }
+
+    this.updateChatter(deltaMs);
+  }
+
+  /**
+   * Drives the idle-chatter state machine: clients in slots 1+ occasionally
+   * turn toward a neighbor and play their talking animation. Lasts a short
+   * burst, then we wait a random cooldown before the next chat.
+   */
+  updateChatter(deltaMs) {
+    if (this.chatter) {
+      this.chatter.ms -= deltaMs;
+      // If either party left the queue mid-conversation, end it gracefully.
+      const left = this.clients[this.chatter.leftIdx];
+      const right = this.clients[this.chatter.rightIdx];
+      if (!left || !right || this.chatter.ms <= 0) {
+        if (left && left.isAlive) left.setTalking(null);
+        if (right && right.isAlive) right.setTalking(null);
+        this.chatter = null;
+        this.nextChatterAt = this.scene.time.now + Phaser.Math.Between(2500, 6000);
+      }
+      return;
+    }
+    if (this.scene.time.now < this.nextChatterAt) return;
+    // Need at least 2 back clients (slots 1 and 2) for them to chat with
+    // each other. The front client stays focused on the tap.
+    if (this.clients.length < 3) {
+      this.nextChatterAt = this.scene.time.now + 1500;
+      return;
+    }
+    const leftIdx = 1;
+    const rightIdx = 2;
+    const left = this.clients[leftIdx];
+    const right = this.clients[rightIdx];
+    if (!left || !right) return;
+    // slotIndex grows from front→back, but in screen-space "right of" the
+    // slot-1 client is slot-2 (per queueXOffset). So slot 1 talks RIGHT and
+    // slot 2 talks LEFT to face each other.
+    left.setTalking('right');
+    right.setTalking('left');
+    this.chatter = {
+      leftIdx,
+      rightIdx,
+      ms: Phaser.Math.Between(1800, 3500),
+    };
   }
 
   spawnClient() {
@@ -111,6 +163,13 @@ export default class ClientQueue {
 
   reflow() {
     this.clients.forEach((c, i) => c.applyQueueSlot(i, this.anchorX));
+    // Slot indices changed — any active chatter is now stale. End it; a
+    // fresh chat will start on the next cooldown.
+    if (this.chatter) {
+      this.clients.forEach((c) => c.isAlive && c.setTalking(null));
+      this.chatter = null;
+      this.nextChatterAt = this.scene.time.now + Phaser.Math.Between(1500, 3500);
+    }
   }
 
   destroy() {

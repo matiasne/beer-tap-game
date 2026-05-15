@@ -39,7 +39,7 @@ export default class ScoreboardScene extends Phaser.Scene {
     bg.fillStyle(0x2a1f14, 1);
     bg.fillRect(0, 106, 800, 4);
 
-    this.add.text(400, 85, 'HIGH SCORES', {
+    this.add.text(400, 85, 'MEJORES PUNTAJES', {
       fontFamily: FONT_FAMILY,
       fontSize: '32px',
       color: '#ffd93d',
@@ -57,10 +57,10 @@ export default class ScoreboardScene extends Phaser.Scene {
       date: 720,
     };
     this.drawHeaderCell('#', cols.rank, headerY, 0.5);
-    this.drawHeaderCell('NAME', cols.name, headerY, 0);
-    this.drawHeaderCell('SCORE', cols.score, headerY, 1);
-    this.drawHeaderCell('LEVEL', cols.level, headerY, 1);
-    this.drawHeaderCell('DATE', cols.date, headerY, 1);
+    this.drawHeaderCell('NOMBRE', cols.name, headerY, 0);
+    this.drawHeaderCell('PUNTAJE', cols.score, headerY, 1);
+    this.drawHeaderCell('NIVEL', cols.level, headerY, 1);
+    this.drawHeaderCell('FECHA', cols.date, headerY, 1);
 
     // Divider
     const div = this.add.graphics();
@@ -73,7 +73,7 @@ export default class ScoreboardScene extends Phaser.Scene {
     const rowH = 30;
 
     if (entries.length === 0) {
-      this.add.text(400, 330, 'No scores yet — be the first!', {
+      this.add.text(400, 330, 'Todavía no hay puntajes — ¡sé el primero!', {
         fontFamily: FONT_FAMILY,
         fontSize: '20px',
         color: '#8a7a55',
@@ -111,8 +111,8 @@ export default class ScoreboardScene extends Phaser.Scene {
 
     // Footer prompt
     const promptText = this.attract
-      ? 'press [1] [2] [3] or [4] to play'
-      : 'press [1] [2] [3] or [4] to continue';
+      ? 'apretá [1] [2] [3] o [4] para jugar'
+      : 'apretá [1] [2] [3] o [4] para continuar';
     this.prompt = this.add.text(400, 555, promptText.toUpperCase(), {
       fontFamily: FONT_FAMILY,
       fontSize: '18px',

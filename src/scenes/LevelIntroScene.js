@@ -28,7 +28,7 @@ export default class LevelIntroScene extends Phaser.Scene {
     const earnThisRound = Math.max(0, target - this.startingScore);
 
     // Big level number
-    this.add.text(400, 130, `LEVEL ${this.level}`, {
+    this.add.text(400, 130, `NIVEL ${this.level}`, {
       fontFamily: FONT_FAMILY,
       fontSize: '44px',
       color: '#f2d36b',
@@ -42,13 +42,13 @@ export default class LevelIntroScene extends Phaser.Scene {
     const lineH = 36;
     const startY = 230;
 
-    this.addStatRow(220, startY, 'TIME LIMIT', `${time}s`, labelColor, statColor);
-    this.addStatRow(220, startY + lineH, 'TARGET SCORE', `$${target}`, labelColor, statColor);
-    this.addStatRow(220, startY + lineH * 2, 'CURRENT SCORE', `$${this.startingScore}`, labelColor, statColor);
-    this.addStatRow(220, startY + lineH * 3, 'NEED TO EARN', `$${earnThisRound}`, labelColor, '#ffd93d');
+    this.addStatRow(220, startY, 'TIEMPO LÍMITE', `${time}s`, labelColor, statColor);
+    this.addStatRow(220, startY + lineH, 'PUNTAJE OBJETIVO', `$${target}`, labelColor, statColor);
+    this.addStatRow(220, startY + lineH * 2, 'PUNTAJE ACTUAL', `$${this.startingScore}`, labelColor, statColor);
+    this.addStatRow(220, startY + lineH * 3, 'TE FALTAN', `$${earnThisRound}`, labelColor, '#ffd93d');
 
     // Tap-keys prompt — pressing any tap key advances into the level.
-    const prompt = this.add.text(400, 470, 'PRESS [1] [2] [3] or [4] TO START', {
+    const prompt = this.add.text(400, 470, 'APRETÁ [1] [2] [3] o [4] PARA EMPEZAR', {
       fontFamily: FONT_FAMILY,
       fontSize: '20px',
       color: '#fff4d6',

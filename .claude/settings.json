@@ -13,7 +13,10 @@
       "Bash(curl -s -o /dev/null -w \"Glass.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/Glass.js\")",
       "Bash(curl -s -o /dev/null -w \"page: %{http_code}\\\\n\" http://127.0.0.1:5173/)",
       "Bash(curl -s -o /dev/null -w \"Client.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/Client.js\")",
-      "Bash(curl -s -o /dev/null -w \"ClientQueue.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/ClientQueue.js\")"
+      "Bash(curl -s -o /dev/null -w \"ClientQueue.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/ClientQueue.js\")",
+      "Bash(grep -v \"iconKey\\\\|styleLabel\\\\|drawStyleLabel\\\\|//\\\\|\\\\.label,$\\\\|\\\\.label }\\\\|setLabel\")",
+      "Bash(npx vite *)",
+      "Bash(pkill -f \"vite\")"
     ]
   }
 }

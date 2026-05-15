@@ -26,7 +26,7 @@ export default class LevelResultScene extends Phaser.Scene {
     bg.fillStyle(0x1a1612, 1);
     bg.fillRect(0, 0, 800, 600);
 
-    const headline = this.passed ? 'LEVEL CLEARED' : 'GAME OVER';
+    const headline = this.passed ? 'NIVEL SUPERADO' : 'FIN DEL JUEGO';
     const headlineColor = this.passed ? '#6acc4a' : '#ff4a2a';
 
     this.add.text(400, 150, headline, {
@@ -37,7 +37,7 @@ export default class LevelResultScene extends Phaser.Scene {
       strokeThickness: 6,
     }).setOrigin(0.5, 0.5);
 
-    this.add.text(400, 200, `Level ${this.level}`, {
+    this.add.text(400, 200, `Nivel ${this.level}`, {
       fontFamily: FONT_FAMILY,
       fontSize: '18px',
       color: '#a89668',
@@ -48,20 +48,20 @@ export default class LevelResultScene extends Phaser.Scene {
     const valueColor = '#e8d9a8';
     const startY = 280;
     const lineH = 36;
-    this.addStatRow(220, startY, 'YOUR SCORE', `$${Math.max(0, this.score)}`, labelColor, valueColor);
-    this.addStatRow(220, startY + lineH, 'TARGET', `$${this.target}`, labelColor, valueColor);
+    this.addStatRow(220, startY, 'TU PUNTAJE', `$${Math.max(0, this.score)}`, labelColor, valueColor);
+    this.addStatRow(220, startY + lineH, 'OBJETIVO', `$${this.target}`, labelColor, valueColor);
     if (this.passed) {
       const surplus = this.score - this.target;
-      this.addStatRow(220, startY + lineH * 2, 'OVER TARGET BY', `$${surplus}`, labelColor, '#ffd93d');
+      this.addStatRow(220, startY + lineH * 2, 'TE SOBRARON', `$${surplus}`, labelColor, '#ffd93d');
     } else {
       const deficit = this.target - this.score;
-      this.addStatRow(220, startY + lineH * 2, 'MISSED BY', `$${deficit}`, labelColor, '#ff7a4a');
+      this.addStatRow(220, startY + lineH * 2, 'TE FALTARON', `$${deficit}`, labelColor, '#ff7a4a');
     }
 
     // Tap-keys prompt — pressing any tap key continues / returns to menu.
     const promptLabel = this.passed
-      ? `PRESS [1] [2] [3] or [4] FOR LEVEL ${this.level + 1}`
-      : 'PRESS [1] [2] [3] or [4] FOR MENU';
+      ? `APRETÁ [1] [2] [3] o [4] PARA EL NIVEL ${this.level + 1}`
+      : 'APRETÁ [1] [2] [3] o [4] PARA EL MENÚ';
     const promptColor = this.passed ? '#cfe8a8' : '#fff4d6';
     const prompt = this.add.text(400, 480, promptLabel, {
       fontFamily: FONT_FAMILY,

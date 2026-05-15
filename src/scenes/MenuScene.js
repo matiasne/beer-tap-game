@@ -25,7 +25,7 @@ export default class MenuScene extends Phaser.Scene {
     bg.fillRect(0, 166, 800, 4);
 
     // Title
-    this.add.text(400, 230, 'PERFECT POURING', {
+    this.add.text(400, 230, 'SERVIDA PERFECTA', {
       fontFamily: FONT_FAMILY,
       fontSize: '44px',
       color: '#f2d36b',
@@ -34,14 +34,14 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5);
 
     // Subtitle
-    this.add.text(400, 285, 'pour the right beer, the right way, fast', {
+    this.add.text(400, 285, 'serví la cerveza justa, como la piden, rápido', {
       fontFamily: FONT_FAMILY,
       fontSize: '16px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
 
     // Big tap-keys prompt — replaces the start button.
-    this.promptText = this.add.text(400, 400, 'PRESS [1] [2] [3] or [4] TO START', {
+    this.promptText = this.add.text(400, 400, 'APRETÁ [1] [2] [3] o [4] PARA EMPEZAR', {
       fontFamily: FONT_FAMILY,
       fontSize: '22px',
       color: '#fff4d6',
@@ -61,7 +61,7 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     // Footer instructions
-    this.add.text(400, 560, 'hold 1 / 2 / 3 / 4 to pour each tap', {
+    this.add.text(400, 560, 'mantené 1 / 2 / 3 / 4 para servir de cada canilla', {
       fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#6a5a3d',

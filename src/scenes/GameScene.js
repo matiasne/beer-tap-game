@@ -69,7 +69,7 @@ export default class GameScene extends Phaser.Scene {
       queue.onAngryLeave(() => {
         this.score += GAME_CONFIG.clients.angryPenalty;
         this.refreshHud();
-        this.showFeedback('left angry!', '#ff4a2a', x, GAME_CONFIG.clients.frontBottomY - 80);
+        this.showFeedback('¡se fue enojado!', '#ff4a2a', x, GAME_CONFIG.clients.frontBottomY - 80);
       });
       this.taps.push(tap);
       this.glasses.push(glass);
@@ -113,7 +113,7 @@ export default class GameScene extends Phaser.Scene {
 
     // HUD — top-left: score (big) + target (small label below).
     //        top-right: level + time remaining.
-    this.scoreLabel = this.add.text(16, 10, 'SCORE', {
+    this.scoreLabel = this.add.text(16, 10, 'PUNTAJE', {
       fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#8a7a55',
@@ -125,12 +125,12 @@ export default class GameScene extends Phaser.Scene {
       stroke: '#1a120a',
       strokeThickness: 3,
     });
-    this.targetLabel = this.add.text(16, 54, 'TARGET', {
+    this.targetLabel = this.add.text(16, 54, 'OBJETIVO', {
       fontFamily: FONT_FAMILY,
       fontSize: '11px',
       color: '#8a7a55',
     });
-    this.targetText = this.add.text(72, 53, '', {
+    this.targetText = this.add.text(86, 53, '', {
       fontFamily: FONT_FAMILY,
       fontSize: '14px',
       color: '#e8d9a8',
@@ -174,7 +174,7 @@ export default class GameScene extends Phaser.Scene {
     this.refreshHud();
 
     // Instructions
-    this.add.text(400, 588, 'hold 1 / 2 / 3 / 4 to pour — serve fast, tips decay!', {
+    this.add.text(400, 588, 'mantené 1 / 2 / 3 / 4 para servir — ¡rápido, las propinas bajan!', {
       fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#6a5a3d',
@@ -248,7 +248,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Banner
-    const banner = this.add.text(400, 300, "TIME'S UP!", {
+    const banner = this.add.text(400, 300, '¡SE ACABÓ EL TIEMPO!', {
       fontFamily: FONT_FAMILY,
       fontSize: '64px',
       color: '#ffd93d',
@@ -406,7 +406,7 @@ export default class GameScene extends Phaser.Scene {
         const totalWithCombo = Math.round(baseScore * multiplier);
         comboBonus = totalWithCombo - baseScore;
         score = totalWithCombo;
-        comboLabel = `PERFECT x${this.combo} (${multiplier}×)`;
+        comboLabel = `PERFECTA x${this.combo} (${multiplier}×)`;
         // Pop the combo display on growth so the player feels the streak.
         if (this.comboGroup) {
           this.tweens.killTweensOf(this.comboGroup);
@@ -424,7 +424,7 @@ export default class GameScene extends Phaser.Scene {
       this.combo = 0;
       if (wasStreak >= 2) {
         this.showFeedback(
-          `combo x${wasStreak} lost`,
+          `combo x${wasStreak} perdido`,
           '#a89668',
           glass.x,
           glass.y - 110,
@@ -448,7 +448,7 @@ export default class GameScene extends Phaser.Scene {
     // Style mismatch: client took the glass but won't tip you for it.
     if (styleMismatch) {
       this.showFeedback(
-        `wanted ${frontWantedStyle.label}!`,
+        `¡quería ${frontWantedStyle.label}!`,
         '#ff7a4a',
         glass.x,
         glass.y - 30,
@@ -462,11 +462,11 @@ export default class GameScene extends Phaser.Scene {
     if (tip > 0) {
       this.score += tip;
       const mulNote =
-        tipMultiplier > 1.2 ? ' (generous!)' :
-        tipMultiplier < 0.6 ? ' (stingy)' : '';
+        tipMultiplier > 1.2 ? ' (¡generoso!)' :
+        tipMultiplier < 0.6 ? ' (tacaño)' : '';
       // Tip floats over the client (who's paying), not the cup.
       this.showFeedback(
-        `+$${tip} tip${mulNote}`,
+        `+$${tip} propina${mulNote}`,
         '#ffd93d',
         GAME_CONFIG.tapXs[i],
         GAME_CONFIG.clients.frontBottomY - 80,
@@ -543,20 +543,20 @@ export default class GameScene extends Phaser.Scene {
   pourQualityFor(liquidPct, foamPct, overflow, preference) {
     const s = GAME_CONFIG.scoring;
     if (overflow || liquidPct > 100) {
-      return { label: 'OVERFLOW!', color: '#ff7a4a' };
+      return { label: '¡SE REBALSÓ!', color: '#ff7a4a' };
     }
     if (liquidPct + foamPct < s.wastedBelow) {
-      return { label: 'barely poured', color: '#888888' };
+      return { label: 'casi vacío', color: '#888888' };
     }
 
     // No client at the tap — fall back to absolute foam/fill grading.
     if (!preference) {
       if (liquidPct >= 96) {
-        return { label: 'PERFECT', color: '#ffd93d', perfect: true };
+        return { label: 'PERFECTA', color: '#ffd93d', perfect: true };
       }
-      if (liquidPct >= 90) return { label: 'great pour', color: '#f2d36b' };
-      if (liquidPct >= 70) return { label: 'good pour', color: '#cfe8a8' };
-      return { label: 'decent pour', color: '#cfe8a8' };
+      if (liquidPct >= 90) return { label: 'gran servida', color: '#f2d36b' };
+      if (liquidPct >= 70) return { label: 'buena servida', color: '#cfe8a8' };
+      return { label: 'servida pasable', color: '#cfe8a8' };
     }
 
     const ev = evaluateAgainstPreference(liquidPct, foamPct, preference);
@@ -568,19 +568,19 @@ export default class GameScene extends Phaser.Scene {
     // axes miss, use "wasted" tone; if one matches, name the one that's off.
     const foamRatio = liquidPct > 1 ? (foamPct / liquidPct) * 100 : 0;
     if (!ev.fillInWindow && !ev.foamInWindow) {
-      return { label: 'not their style', color: '#e89c6b' };
+      return { label: 'no es su estilo', color: '#e89c6b' };
     }
     if (!ev.fillInWindow) {
       const tooMuch = liquidPct > preference.fill.fillTarget;
       return {
-        label: tooMuch ? 'too much' : 'too little',
+        label: tooMuch ? 'demasiada' : 'muy poca',
         color: '#f2d36b',
       };
     }
     // foam off
     const tooFoamy = foamRatio > preference.foam.foamRatioTarget;
     return {
-      label: tooFoamy ? 'too foamy' : 'too flat',
+      label: tooFoamy ? 'mucha espuma' : 'sin espuma',
       color: '#f2d36b',
     };
   }
@@ -625,7 +625,7 @@ export default class GameScene extends Phaser.Scene {
     const sign = this.score < 0 ? '-' : ' ';
     this.scoreText.setText(`${sign}$${padded}`);
     if (this.targetText) this.targetText.setText(`$${this.target}`);
-    if (this.levelText) this.levelText.setText(`LEVEL ${this.level}`);
+    if (this.levelText) this.levelText.setText(`NIVEL ${this.level}`);
     if (this.timeText) {
       const secsLeft = Math.max(0, Math.ceil(this.timeRemainingMs / 1000));
       const lowTime = secsLeft <= 10;
@@ -636,7 +636,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.combo >= 2) {
         const multiplier = Math.min(4, 1 + (this.combo - 1) * 0.5);
         this.comboText.setText(`COMBO x${this.combo}`);
-        this.comboMultText.setText(`${multiplier}× SCORE`);
+        this.comboMultText.setText(`${multiplier}× PUNTOS`);
         this.drawComboStars();
         this.comboGroup.setVisible(true);
       } else {
