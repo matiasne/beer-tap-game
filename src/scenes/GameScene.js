@@ -42,6 +42,12 @@ export default class GameScene extends Phaser.Scene {
     // Ms since the tap last stopped pouring on a still-present glass.
     // null = either currently pouring, or there's no glass to release.
     this.idleMs = [null, null, null, null];
+    // Timestamps for the feathering technique (tap-tap-tap = less foam).
+    // -Infinity means "never released" so the first press isn't feathered.
+    this.lastStopAt = [-Infinity, -Infinity, -Infinity, -Infinity];
+    this.featherUntil = [0, 0, 0, 0];
+    // Idle-to-auto-release countdown bar (per tap). One Graphics each.
+    this.idleBars = [];
 
     for (let i = 0; i < 4; i++) {
       const x = GAME_CONFIG.tapXs[i];
@@ -59,6 +65,9 @@ export default class GameScene extends Phaser.Scene {
       this.queues.push(queue);
       this.drawKeyLabel(x, GAME_CONFIG.glassY + 100, GAME_CONFIG.keyLabels[i]);
       this.drawStyleLabel(x, GAME_CONFIG.glassY + 75, style);
+      const idleBar = this.add.graphics();
+      idleBar.setVisible(false);
+      this.idleBars.push(idleBar);
     }
 
     // Input — keys 1..4.
@@ -223,14 +232,24 @@ export default class GameScene extends Phaser.Scene {
     if (wantsPour && !tap.isPouring) {
       tap.startPour();
       this.idleMs[i] = null; // resuming on the same glass — cancel any idle countdown
+      // Feathering: if the last release was within the window, grant a
+      // brief foam-growth reduction starting now.
+      const F = GAME_CONFIG.foam;
+      if (this.time.now - this.lastStopAt[i] <= F.featherWindowMs) {
+        this.featherUntil[i] = this.time.now + F.featherEffectMs;
+      }
     } else if (!wantsPour && tap.isPouring) {
       tap.stopPour();
       this.idleMs[i] = 0; // start the 2s idle countdown toward release
+      this.lastStopAt[i] = this.time.now;
     }
 
     // Always tick the glass so foam settles even when not actively pouring.
     if (glass) {
-      glass.addFill(delta, GAME_CONFIG.pourRatePerSecond, tap.isPouring);
+      const F = GAME_CONFIG.foam;
+      const foamMul =
+        this.time.now < this.featherUntil[i] ? F.featherFoamMultiplier : 1;
+      glass.addFill(delta, GAME_CONFIG.pourRatePerSecond, tap.isPouring, foamMul);
       // Overflow conditions: liquid itself past the rim, OR liquid+foam past
       // the rim plus a foam overshoot allowance (a real "head" sits above the lip).
       const overLiquid = glass.fillLevel > GAME_CONFIG.overflowThreshold;
@@ -253,6 +272,34 @@ export default class GameScene extends Phaser.Scene {
         this.releaseGlass(i);
       }
     }
+
+    this.refreshIdleBar(i);
+  }
+
+  /**
+   * Thin minimal bar that drains during the 3s idle-to-auto-release
+   * countdown. Only visible when idle countdown is running.
+   */
+  refreshIdleBar(i) {
+    const bar = this.idleBars[i];
+    if (!bar) return;
+    const ms = this.idleMs[i];
+    if (ms === null || ms <= 0) {
+      bar.setVisible(false);
+      return;
+    }
+    const max = GAME_CONFIG.glassReleaseAfterIdleMs;
+    const remaining = Math.max(0, 1 - ms / max);
+    const W = 40;
+    const H = 2;
+    const x = GAME_CONFIG.tapXs[i] - W / 2;
+    const y = GAME_CONFIG.glassY + 60;
+    bar.clear();
+    bar.fillStyle(0x3a2a1a, 1);
+    bar.fillRect(x, y, W, H);
+    bar.fillStyle(0xe8d9a8, 1);
+    bar.fillRect(x, y, Math.round(W * remaining), H);
+    bar.setVisible(true);
   }
 
   releaseGlass(i, overflow = false) {

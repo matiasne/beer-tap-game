@@ -12,6 +12,13 @@ export const GAME_CONFIG = {
     settleToLiquidRatio: 0.5, // fraction of settled foam that converts back to liquid
     idealMinPct: 8, // % foam relative to liquid for perfect head
     idealMaxPct: 18,
+    // Feathering: if the user re-presses the tap within `featherWindowMs` of
+    // releasing it, foam growth is scaled by `featherFoamMultiplier` for the
+    // next `featherEffectMs`. Liquid rate is unaffected. Rewards tap-tap-tap
+    // pouring technique.
+    featherWindowMs: 300,
+    featherEffectMs: 500,
+    featherFoamMultiplier: 0.7,
   },
 
   // Scoring zones (based on liquid+foam total volume)

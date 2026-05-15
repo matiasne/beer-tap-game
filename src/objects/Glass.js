@@ -121,14 +121,14 @@ export default class Glass extends Phaser.GameObjects.Container {
    *   pouring=false → settle foam: shrink it, convert a fraction back to liquid.
    * Returns the new TOTAL level (liquid + foam) so the caller can detect overflow.
    */
-  addFill(deltaMs, pourRatePerSecond, pouring) {
+  addFill(deltaMs, pourRatePerSecond, pouring, foamGrowthMultiplier = 1) {
     if (this.released) return this.fillLevel + this.foamLevel;
     const dt = deltaMs / 1000;
     const F = GAME_CONFIG.foam;
 
     if (pouring) {
       this.fillLevel += pourRatePerSecond * dt;
-      this.foamLevel += F.growthPerSecond * dt;
+      this.foamLevel += F.growthPerSecond * foamGrowthMultiplier * dt;
     } else if (this.foamLevel > 0) {
       const shrink = Math.min(this.foamLevel, F.settlePerSecond * dt);
       this.foamLevel -= shrink;
