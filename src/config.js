@@ -37,7 +37,6 @@ export const GAME_CONFIG = {
   tapY: 250,
   glassY: 440,
   tapXs: [150, 325, 500, 675],
-  keyLabels: ["1", "2", "3", "4"],
 
   // Glass cycle timings (ms)
   glassReleaseDuration: 450,

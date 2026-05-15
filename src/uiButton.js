@@ -1,3 +1,5 @@
+import { FONT_FAMILY } from './textStyle.js';
+
 /**
  * Lightweight button helper. Adds a rectangle with a text label centered
  * on (x, y), wires hover + click handlers, and returns a small object the
@@ -20,7 +22,7 @@ export function createButton(scene, x, y, label, onClick, opts = {}) {
   bg.setInteractive({ useHandCursor: true });
 
   const text = scene.add.text(x, y, label, {
-    fontFamily: 'monospace',
+    fontFamily: FONT_FAMILY,
     fontSize,
     color: textColor,
     stroke: '#1a120a',

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
+import { FONT_FAMILY } from '../textStyle.js';
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
@@ -22,7 +23,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // Title
     this.add.text(400, 230, 'PERFECT POURING', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '44px',
       color: '#f2d36b',
       stroke: '#1a120a',
@@ -31,14 +32,14 @@ export default class MenuScene extends Phaser.Scene {
 
     // Subtitle
     this.add.text(400, 285, 'pour the right beer, the right way, fast', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '16px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
 
     // Big tap-keys prompt — replaces the start button.
     this.promptText = this.add.text(400, 400, 'PRESS [1] [2] [3] or [4] TO START', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '22px',
       color: '#fff4d6',
       stroke: '#1a120a',
@@ -58,7 +59,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // Footer instructions
     this.add.text(400, 560, 'hold 1 / 2 / 3 / 4 to pour each tap', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#6a5a3d',
     }).setOrigin(0.5, 1);

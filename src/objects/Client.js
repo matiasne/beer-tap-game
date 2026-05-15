@@ -3,6 +3,7 @@ import { GAME_CONFIG } from '../config.js';
 import { CLIENT_VARIANTS } from '../scenes/BootScene.js';
 import { pickRandomPreference, prefIconKey } from '../clientPreferences.js';
 import { BEER_STYLES } from '../beerStyles.js';
+import { FONT_FAMILY } from '../textStyle.js';
 
 const C = GAME_CONFIG.clients;
 
@@ -63,7 +64,7 @@ export default class Client extends Phaser.GameObjects.Container {
 
     // Tip text floating above the head, offset right of the icon.
     this.tipText = scene.add.text(8, -28 * C.queueScale - 16, '', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '14px',
       color: '#ffd93d',
       stroke: '#1a120a',

@@ -15,4 +15,17 @@ const config = {
   scene: [BootScene, MenuScene, LevelIntroScene, GameScene, LevelResultScene],
 };
 
-new Phaser.Game(config);
+// Wait for the pixel font to be ready before booting so the very first
+// text frame already uses it (avoids a one-frame flash of fallback monospace).
+async function boot() {
+  if (document.fonts?.load) {
+    try {
+      await document.fonts.load('16px PixelOperator');
+    } catch {
+      // Font failed to load — fall through to the monospace fallback.
+    }
+  }
+  new Phaser.Game(config);
+}
+
+boot();

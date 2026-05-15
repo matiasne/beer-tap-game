@@ -74,18 +74,50 @@ export default class BootScene extends Phaser.Scene {
     g.destroy();
   }
 
-  // Thin beer stream, 2x1 px — stretched vertically between tap and glass.
-  // Color comes from the beer style; the lighter highlight column is a
-  // brightened version of the liquid edge.
+  // Beer stream — 4×16 px tile, designed to scroll vertically as a TileSprite.
+  // Columns: dark edge | body | bright specular | light edge.
+  // Rows: a repeating pattern of body/foam bands so when the tile scrolls
+  // downward it reads as flowing liquid with droplets and air pockets.
   makeStream(key, style) {
+    const W = 4;
+    const H = 16;
+    const body = style.liquidColor;
+    const edgeDark = darken(style.liquidColor, 0.65);
+    const edgeBright = style.key === 'stout' ? 0x6a3a20 : 0xfff4d6;
+    const bubble = style.key === 'stout' ? 0xa67050 : 0xfff4d6;
+
     const g = this.add.graphics();
-    g.fillStyle(style.liquidColor, 1);
-    g.fillRect(0, 0, 2, 1);
-    // For dark beers (stout) use a soft highlight column so the stream is visible.
-    const highlight = style.key === 'stout' ? 0x6a3a20 : 0xfff4d6;
-    g.fillStyle(highlight, 0.6);
-    g.fillRect(0, 0, 1, 1);
-    g.generateTexture(key, 2, 1);
+
+    // Base body fill across the whole tile
+    g.fillStyle(body, 1);
+    g.fillRect(0, 0, W, H);
+
+    // Side columns (dark left edge, soft right edge) — gives the stream
+    // depth and a clear silhouette against any background.
+    g.fillStyle(edgeDark, 1);
+    g.fillRect(0, 0, 1, H);
+    g.fillStyle(edgeBright, 0.45);
+    g.fillRect(W - 1, 0, 1, H);
+
+    // Specular streak — interrupted column so the highlight reads as
+    // moving when the tile scrolls.
+    for (let y = 0; y < H; y++) {
+      if (y % 4 !== 3) {
+        g.fillStyle(edgeBright, 0.8);
+        g.fillRect(1, y, 1, 1);
+      }
+    }
+
+    // Droplet / air pocket pattern — periodic dark notch + a bright
+    // single-pixel highlight just below it. Repeats every 8px.
+    for (let y = 2; y < H; y += 8) {
+      g.fillStyle(edgeDark, 0.8);
+      g.fillRect(2, y, 1, 1);
+      g.fillStyle(bubble, 0.9);
+      g.fillRect(2, y + 1, 1, 1);
+    }
+
+    g.generateTexture(key, W, H);
     g.destroy();
   }
 
@@ -97,39 +129,157 @@ export default class BootScene extends Phaser.Scene {
     const h = 40;
     const g = this.add.graphics();
 
-    // Mount plate (back of tap, attaches to wall)
-    g.fillStyle(0x4a3724, 1);
-    g.fillRect(2, 0, w - 4, 6);
-    g.fillStyle(0x6b4f33, 1);
-    g.fillRect(3, 1, w - 6, 2);
-
-    // Main metal body (cylindrical look via stripes)
-    g.fillStyle(0x8a8a92, 1);
-    g.fillRect(6, 6, w - 12, 22);
-    g.fillStyle(0xc4c4cc, 1);
-    g.fillRect(7, 7, 2, 20); // left highlight
-    g.fillStyle(0x5a5a62, 1);
-    g.fillRect(w - 9, 7, 2, 20); // right shadow
-
-    // Handle (lever on top) — color from beer style.
-    // Active = brighter highlight to signal pouring; idle = base handle color.
+    // Palette
+    const woodDark = 0x2a1f14;
+    const wood = 0x4a3724;
+    const woodLight = 0x6b4f33;
+    const woodEdge = 0x8a6a40;
+    const metalShadow = 0x4a4a52;
+    const metalBase = 0x8a8a92;
+    const metalLight = 0xc4c4cc;
+    const metalBright = 0xeaeaef;
+    const spoutDark = 0x3a3a42;
+    const spout = 0x6a6a72;
     const handleBase = style.handleColor;
     const handleBright = style.handleHighlight;
-    g.fillStyle(active ? handleBright : handleBase, 1);
-    g.fillRect(10, 2, 4, 8);
-    g.fillStyle(active ? lighten(handleBright, 1.2) : handleBright, 1);
-    g.fillRect(10, 2, 2, 8);
+    const handleDark = darken(handleBase, 0.6);
+    const handleTop = active ? lighten(handleBright, 1.2) : handleBright;
 
-    // Spout (bottom)
-    g.fillStyle(0x6a6a72, 1);
-    g.fillRect(8, 28, w - 16, 6);
-    g.fillStyle(0x3a3a42, 1);
-    g.fillRect(9, 33, w - 18, 3); // dark hole at bottom
+    // --- Wall mount plate (back of tap) ---
+    // Outline + two-tone wood face + 2 visible bolt heads.
+    g.fillStyle(woodDark, 1);
+    g.fillRect(1, 0, w - 2, 7); // outline plate
+    g.fillStyle(wood, 1);
+    g.fillRect(2, 1, w - 4, 5); // main face
+    g.fillStyle(woodLight, 1);
+    g.fillRect(3, 1, w - 6, 1); // top highlight strip
+    g.fillStyle(woodDark, 1);
+    g.fillRect(2, 5, w - 4, 1); // bottom shadow strip
+    // Bolts
+    g.fillStyle(woodEdge, 1);
+    g.fillRect(4, 3, 1, 1);
+    g.fillRect(w - 5, 3, 1, 1);
+    g.fillStyle(metalLight, 1);
+    g.fillRect(4, 3, 1, 1);
+    g.fillStyle(woodDark, 1);
+    g.fillRect(4, 4, 1, 1); // bolt shadow
+    g.fillStyle(metalLight, 1);
+    g.fillRect(w - 5, 3, 1, 1);
+    g.fillStyle(woodDark, 1);
+    g.fillRect(w - 5, 4, 1, 1);
 
-    // Active glow highlight
+    // --- Main chrome body — tapered, with proper specular streak ---
+    // Wider at the top (just under the mount), slightly narrower at the
+    // spout shoulder. Drawn row-by-row so we can taper cleanly.
+    const bodyTop = 7;
+    const bodyBot = 28;
+    for (let y = bodyTop; y < bodyBot; y++) {
+      const t = (y - bodyTop) / (bodyBot - bodyTop - 1); // 0..1
+      // Body half-width: 6 at top → 5 near the bottom shoulder.
+      const half = t < 0.85 ? 6 : 5;
+      const cx = w / 2;
+      // Outline
+      g.fillStyle(metalShadow, 1);
+      g.fillRect(cx - half, y, 1, 1);
+      g.fillRect(cx + half - 1, y, 1, 1);
+      // Body fill
+      g.fillStyle(metalBase, 1);
+      g.fillRect(cx - half + 1, y, half * 2 - 2, 1);
+    }
+    // Specular streak (left-of-center) — runs the body's length, brighter in
+    // the middle to look cylindrical.
+    for (let y = bodyTop + 1; y < bodyBot - 1; y++) {
+      g.fillStyle(metalLight, 1);
+      g.fillRect(8, y, 1, 1);
+      // Center brightest pixel cluster
+      if (y > 11 && y < 22) {
+        g.fillStyle(metalBright, 1);
+        g.fillRect(9, y, 1, 1);
+      }
+    }
+    // Right-side soft shadow column
+    for (let y = bodyTop + 1; y < bodyBot - 1; y++) {
+      g.fillStyle(metalShadow, 0.6);
+      g.fillRect(w - 9, y, 1, 1);
+    }
+    // Decorative collar rings — two thin bands across the body for that
+    // segmented chrome look.
+    const ringYs = [11, 22];
+    for (const ry of ringYs) {
+      g.fillStyle(metalShadow, 1);
+      g.fillRect(7, ry, w - 14, 1);
+      g.fillStyle(metalBright, 1);
+      g.fillRect(7, ry - 1, w - 14, 1);
+    }
+
+    // --- Handle (knob) — taller, with a rounded ball top ---
+    // Stem (rectangular)
+    const stemX = 10;
+    const stemY = 2;
+    const stemW = 4;
+    const stemH = 7;
+    g.fillStyle(handleDark, 1);
+    g.fillRect(stemX, stemY, stemW, stemH); // base
+    g.fillStyle(handleBase, 1);
+    g.fillRect(stemX, stemY, stemW - 1, stemH); // main stem
+    g.fillStyle(handleBright, 1);
+    g.fillRect(stemX, stemY, 1, stemH); // left highlight column
+    // Ball top — slightly wider than the stem
+    const ballY = stemY - 2;
+    g.fillStyle(handleDark, 1);
+    g.fillRect(stemX - 1, ballY + 1, stemW + 2, 1); // bottom row (widest)
+    g.fillRect(stemX, ballY, stemW, 1); // top row
+    g.fillStyle(handleBase, 1);
+    g.fillRect(stemX, ballY + 1, stemW, 1);
+    g.fillRect(stemX - 1, ballY + 1, 1, 1);
+    g.fillRect(stemX + stemW, ballY + 1, 1, 1);
+    g.fillStyle(handleTop, 1);
+    g.fillRect(stemX + 1, ballY, 2, 1); // ball top highlight
+    // Sparkle on the ball
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(stemX + 1, ballY, 1, 1);
+    // Stem→body collar ring
+    g.fillStyle(handleDark, 1);
+    g.fillRect(stemX - 1, stemY + stemH, stemW + 2, 1);
+
+    // --- Spout — angled-looking with a rim and a dark inner hole ---
+    const spoutTop = 28;
+    // Shoulder under the body (a bit wider than the spout itself)
+    g.fillStyle(metalShadow, 1);
+    g.fillRect(6, spoutTop, w - 12, 1);
+    g.fillStyle(metalLight, 1);
+    g.fillRect(7, spoutTop, w - 14, 1);
+    // Spout body
+    g.fillStyle(spout, 1);
+    g.fillRect(8, spoutTop + 1, w - 16, 5);
+    // Spout highlight column
+    g.fillStyle(metalLight, 1);
+    g.fillRect(8, spoutTop + 1, 1, 4);
+    // Spout shadow column
+    g.fillStyle(spoutDark, 1);
+    g.fillRect(w - 9, spoutTop + 1, 1, 4);
+    // Rim under the spout
+    g.fillStyle(metalShadow, 1);
+    g.fillRect(7, spoutTop + 6, w - 14, 1);
+    // Dark inner hole at the very bottom
+    g.fillStyle(spoutDark, 1);
+    g.fillRect(9, spoutTop + 6, w - 18, 2);
+    g.fillStyle(0x1a1a1f, 1);
+    g.fillRect(10, spoutTop + 7, w - 20, 1);
+
+    // --- Active state — warm glow around the body + a beer-colored drip ---
     if (active) {
+      // Warm glow on the upper body
       g.fillStyle(0xfff4d6, 0.35);
-      g.fillRect(6, 6, w - 12, 2);
+      g.fillRect(7, bodyTop, w - 14, 2);
+      // Beer-tinted glow inside the spout opening
+      g.fillStyle(style.liquidColor, 0.7);
+      g.fillRect(10, spoutTop + 7, w - 20, 1);
+      // Tiny drip clinging to the spout edge
+      g.fillStyle(style.liquidColor, 1);
+      g.fillRect(11, spoutTop + 8, 2, 1);
+      g.fillStyle(style.liquidEdgeColor, 1);
+      g.fillRect(11, spoutTop + 8, 1, 1);
     }
 
     g.generateTexture(key, w, h);

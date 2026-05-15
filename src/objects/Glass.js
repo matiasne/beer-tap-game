@@ -86,14 +86,22 @@ export default class Glass extends Phaser.GameObjects.Container {
       this.crownBubbles.push({ rOff: this.rng(), cOff: this.rng() });
     }
 
-    // Glass texture sprite.
-    this.glassSprite = scene.add.image(0, 0, `glass_${this.shape.key}`);
+    // All glasses share the same bottom baseline so they sit flat on the
+    // bar regardless of their outer height. Baseline = half of the tallest
+    // glass; shorter glasses get shifted down in local space so their
+    // bottoms land at the same screen Y as the tallest one.
+    const BASELINE_HALF_H = 58 / 2; // tallest outerHeightPx in glassShapes
+    const halfH = this.shape.outerHeightPx / 2;
+    const bottomBaselineOffset = (BASELINE_HALF_H - halfH) * SCALE;
+
+    // Glass texture sprite — origin centered, then shifted so the sprite
+    // bottom lines up with the shared baseline.
+    this.glassSprite = scene.add.image(0, bottomBaselineOffset, `glass_${this.shape.key}`);
     this.glassSprite.setScale(SCALE);
     this.glassSprite.setOrigin(0.5, 0.5);
 
-    const halfH = this.shape.outerHeightPx / 2;
-    this.innerBottomLocalY = (halfH - this.shape.bottomPaddingPx) * SCALE;
-    this.innerTopLocalY = (-halfH + this.shape.topPaddingPx) * SCALE;
+    this.innerBottomLocalY = (halfH - this.shape.bottomPaddingPx) * SCALE + bottomBaselineOffset;
+    this.innerTopLocalY = (-halfH + this.shape.topPaddingPx) * SCALE + bottomBaselineOffset;
 
     this.fillGfx = scene.add.graphics();
 

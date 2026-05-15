@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
+import { FONT_FAMILY } from '../textStyle.js';
 
 /**
  * Post-level screen.
@@ -28,7 +29,7 @@ export default class LevelResultScene extends Phaser.Scene {
     const headlineColor = this.passed ? '#6acc4a' : '#ff4a2a';
 
     this.add.text(400, 150, headline, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '48px',
       color: headlineColor,
       stroke: '#1a120a',
@@ -36,7 +37,7 @@ export default class LevelResultScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5);
 
     this.add.text(400, 200, `Level ${this.level}`, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '18px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
@@ -62,7 +63,7 @@ export default class LevelResultScene extends Phaser.Scene {
       : 'PRESS [1] [2] [3] or [4] FOR MENU';
     const promptColor = this.passed ? '#cfe8a8' : '#fff4d6';
     const prompt = this.add.text(400, 480, promptLabel, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '18px',
       color: promptColor,
       stroke: '#1a120a',
@@ -83,12 +84,12 @@ export default class LevelResultScene extends Phaser.Scene {
 
   addStatRow(x, y, label, value, labelColor, valueColor) {
     this.add.text(x, y, label, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '16px',
       color: labelColor,
     }).setOrigin(0, 0.5);
     this.add.text(580, y, value, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '20px',
       color: valueColor,
       stroke: '#1a120a',

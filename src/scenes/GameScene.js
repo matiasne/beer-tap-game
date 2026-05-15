@@ -6,6 +6,7 @@ import ClientQueue from '../objects/ClientQueue.js';
 import { evaluateAgainstPreference } from '../clientPreferences.js';
 import { shuffleAndPickStyles } from '../beerStyles.js';
 import { levelTimeSec, levelTarget } from '../levels.js';
+import { FONT_FAMILY } from '../textStyle.js';
 
 const KEY_NAMES = ['ONE', 'TWO', 'THREE', 'FOUR'];
 
@@ -52,7 +53,13 @@ export default class GameScene extends Phaser.Scene {
     for (let i = 0; i < 4; i++) {
       const x = GAME_CONFIG.tapXs[i];
       const style = this.beerStyles[i];
-      const tap = new Tap(this, x, GAME_CONFIG.tapY, GAME_CONFIG.glassY - 40, style);
+      // splashY = rim line (where the stream first contacts the cup).
+      // streamBottomY = below the tallest possible glass bottom so the
+      // stream visually reaches the floor of the cup; glass walls + the
+      // liquid fill hide the submerged part naturally.
+      const splashY = GAME_CONFIG.glassY - 40;
+      const streamBottomY = GAME_CONFIG.glassY + 120;
+      const tap = new Tap(this, x, GAME_CONFIG.tapY, splashY, style, streamBottomY);
       const glass = new Glass(this, x, GAME_CONFIG.glassY, /* shape */ null, style);
       // Each tap dispenses one beer style and can't be changed mid-level,
       // so clients at this queue only ever want that same style.
@@ -65,7 +72,6 @@ export default class GameScene extends Phaser.Scene {
       this.taps.push(tap);
       this.glasses.push(glass);
       this.queues.push(queue);
-      this.drawKeyLabel(x, GAME_CONFIG.glassY + 100, GAME_CONFIG.keyLabels[i]);
       this.drawStyleLabel(x, GAME_CONFIG.glassY + 75, style);
       const idleBar = this.add.graphics();
       idleBar.setVisible(false);
@@ -77,17 +83,17 @@ export default class GameScene extends Phaser.Scene {
 
     // HUD — top-left: score / target. Top-right: level + time remaining.
     this.hudText = this.add.text(16, 12, '', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '20px',
       color: '#e8d9a8',
     });
     this.levelText = this.add.text(784, 12, '', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '16px',
       color: '#a89668',
     }).setOrigin(1, 0);
     this.timeText = this.add.text(784, 34, '', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '24px',
       color: '#e8d9a8',
       stroke: '#1a120a',
@@ -97,7 +103,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Instructions
     this.add.text(400, 588, 'hold 1 / 2 / 3 / 4 to pour — serve fast, tips decay!', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#6a5a3d',
     }).setOrigin(0.5, 1);
@@ -125,19 +131,10 @@ export default class GameScene extends Phaser.Scene {
     bar.fillRect(0, GAME_CONFIG.glassY + 108, 800, 80);
   }
 
-  drawKeyLabel(x, y, label) {
-    const txt = this.add.text(x, y, `[${label}]`, {
-      fontFamily: 'monospace',
-      fontSize: '20px',
-      color: '#e8d9a8',
-    });
-    txt.setOrigin(0.5, 0.5);
-  }
-
   drawStyleLabel(x, y, style) {
     const color = '#' + style.handleHighlight.toString(16).padStart(6, '0');
     const txt = this.add.text(x, y, style.label, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '14px',
       color,
       stroke: '#1a120a',
@@ -192,7 +189,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Banner
     const banner = this.add.text(400, 300, "TIME'S UP!", {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '64px',
       color: '#ffd93d',
       stroke: '#1a120a',
@@ -513,7 +510,7 @@ export default class GameScene extends Phaser.Scene {
 
   showFeedback(text, color, x, y, big = true) {
     const t = this.add.text(0, 0, text, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: big ? '24px' : '13px',
       fontStyle: big ? 'bold' : 'normal',
       color,

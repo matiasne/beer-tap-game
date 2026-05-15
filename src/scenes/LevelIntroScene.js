@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { levelTimeSec, levelTarget } from '../levels.js';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
+import { FONT_FAMILY } from '../textStyle.js';
 
 /**
  * Brief intro for an upcoming level. Shows the level number, time limit,
@@ -28,7 +29,7 @@ export default class LevelIntroScene extends Phaser.Scene {
 
     // Big level number
     this.add.text(400, 130, `LEVEL ${this.level}`, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '44px',
       color: '#f2d36b',
       stroke: '#1a120a',
@@ -48,7 +49,7 @@ export default class LevelIntroScene extends Phaser.Scene {
 
     // Tap-keys prompt — pressing any tap key advances into the level.
     const prompt = this.add.text(400, 470, 'PRESS [1] [2] [3] or [4] TO START', {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '20px',
       color: '#fff4d6',
       stroke: '#1a120a',
@@ -69,12 +70,12 @@ export default class LevelIntroScene extends Phaser.Scene {
 
   addStatRow(x, y, label, value, labelColor, valueColor) {
     this.add.text(x, y, label, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '16px',
       color: labelColor,
     }).setOrigin(0, 0.5);
     this.add.text(580, y, value, {
-      fontFamily: 'monospace',
+      fontFamily: FONT_FAMILY,
       fontSize: '20px',
       color: valueColor,
       stroke: '#1a120a',
