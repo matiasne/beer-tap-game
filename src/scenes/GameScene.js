@@ -27,6 +27,8 @@ export default class GameScene extends Phaser.Scene {
     // Brief input cooldown after scene start so the held key that
     // triggered the intro→game transition doesn't immediately start pouring.
     this.inputCooldownMs = 180;
+    // Consecutive perfect-pour combo counter. Resets on any non-perfect.
+    this.combo = 0;
   }
 
   create() {
@@ -92,12 +94,72 @@ export default class GameScene extends Phaser.Scene {
       this.handleTimeUp();
     });
 
-    // HUD — top-left: score / target. Top-right: level + time remaining.
-    this.hudText = this.add.text(16, 12, '', {
+    // Dev shortcut: press C to bump the combo counter for testing the
+    // multiplier ramp + HUD chip without having to pour perfects.
+    this.input.keyboard.on('keydown-C', () => {
+      if (this.timeUp) return;
+      this.combo += 1;
+      this.refreshHud();
+      if (this.combo >= 2 && this.comboGroup) {
+        this.tweens.killTweensOf(this.comboGroup);
+        this.comboGroup.setScale(1.25);
+        this.tweens.add({
+          targets: this.comboGroup,
+          scale: 1,
+          duration: 220,
+          ease: 'Back.out',
+        });
+      }
+    });
+
+    // HUD — top-left: score (big) + target (small label below).
+    //        top-right: level + time remaining.
+    this.scoreLabel = this.add.text(16, 10, 'SCORE', {
       fontFamily: FONT_FAMILY,
-      fontSize: '20px',
+      fontSize: '12px',
+      color: '#8a7a55',
+    });
+    this.scoreText = this.add.text(16, 24, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '24px',
+      color: '#ffd93d',
+      stroke: '#1a120a',
+      strokeThickness: 3,
+    });
+    this.targetLabel = this.add.text(16, 54, 'TARGET', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '11px',
+      color: '#8a7a55',
+    });
+    this.targetText = this.add.text(72, 53, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '14px',
       color: '#e8d9a8',
     });
+    // Combo display — bottom-left, big, with a row of stars below the
+    // label showing progress toward the cap. Only visible when streak ≥ 2.
+    this.comboGroup = this.add.container(20, 520);
+    this.comboGroup.setVisible(false);
+
+    this.comboText = this.add.text(0, 0, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '36px',
+      color: '#ffd93d',
+      stroke: '#1a120a',
+      strokeThickness: 5,
+    });
+    this.comboMultText = this.add.text(0, 38, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '18px',
+      color: '#fff4d6',
+      stroke: '#1a120a',
+      strokeThickness: 3,
+    });
+    this.comboStars = this.add.graphics();
+    this.comboGroup.add([this.comboText, this.comboMultText, this.comboStars]);
+    // Legacy field kept for any external callers; updated each refresh.
+    this.hudText = this.scoreText;
+
     this.levelText = this.add.text(784, 12, '', {
       fontFamily: FONT_FAMILY,
       fontSize: '16px',
@@ -330,19 +392,62 @@ export default class GameScene extends Phaser.Scene {
     const styleMismatch =
       frontWantedStyle != null && pouredStyle.key !== frontWantedStyle.key;
 
-    const { score, tipMultiplier } = this.scoreFor(
+    const scoreResult = this.scoreFor(
       totalPct,
       foamPct,
       liquidPct,
       overflow,
       frontPref,
     );
-    this.score += score;
+    let { score, tipMultiplier } = scoreResult;
 
-    // Primary feedback — describes the pour itself, independent of who's
-    // waiting. The bartender's critique, not the client's reaction.
-    const quality = this.pourQualityFor(liquidPct, foamPct, overflow);
-    this.showFeedback(quality.label, quality.color, glass.x, glass.y - 70, true);
+    // Primary feedback — judged against the client's specific preference.
+    // "PERFECT POUR" requires hitting both the client's fill and foam windows.
+    const quality = this.pourQualityFor(liquidPct, foamPct, overflow, frontPref);
+
+    // --- Combo logic ---
+    // Perfect pour grows the streak; anything else (overflow, decent, foam
+    // off, fill miss) breaks it. The multiplier ramps 1× → 4× over a few
+    // perfects to reward sustained mastery.
+    let comboBonus = 0;
+    let comboLabel = quality.label;
+    if (quality.perfect) {
+      this.combo += 1;
+      const multiplier = Math.min(4, 1 + (this.combo - 1) * 0.5);
+      if (this.combo >= 2) {
+        const baseScore = score; // perfect base = 250
+        const totalWithCombo = Math.round(baseScore * multiplier);
+        comboBonus = totalWithCombo - baseScore;
+        score = totalWithCombo;
+        comboLabel = `PERFECT x${this.combo} (${multiplier}×)`;
+        // Pop the combo display on growth so the player feels the streak.
+        if (this.comboGroup) {
+          this.tweens.killTweensOf(this.comboGroup);
+          this.comboGroup.setScale(1.25);
+          this.tweens.add({
+            targets: this.comboGroup,
+            scale: 1,
+            duration: 220,
+            ease: 'Back.out',
+          });
+        }
+      }
+    } else {
+      const wasStreak = this.combo;
+      this.combo = 0;
+      if (wasStreak >= 2) {
+        this.showFeedback(
+          `combo x${wasStreak} lost`,
+          '#a89668',
+          glass.x,
+          glass.y - 110,
+          false,
+        );
+      }
+    }
+
+    this.score += score;
+    this.showFeedback(comboLabel, quality.color, glass.x, glass.y - 70, true);
 
     // Overflow path: penalty applied, no client served, no glass swap.
     // The bartender dunks the same glass and brings it back empty.
@@ -351,15 +456,6 @@ export default class GameScene extends Phaser.Scene {
       this.idleMs[i] = null;
       glass.dumpAndReset();
       return;
-    }
-
-    // Secondary feedback — client's preference reaction, smaller. Only
-    // when the pour misses what they asked for.
-    if (frontPref) {
-      const ev = evaluateAgainstPreference(liquidPct, foamPct, frontPref);
-      if (!ev.fillInWindow || !ev.foamInWindow) {
-        this.showFeedback(ev.label, '#a89668', glass.x, glass.y - 40, false);
-      }
     }
 
     // Style mismatch: client took the glass but won't tip you for it.
@@ -411,112 +507,95 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Score a poured glass against the front client's preference.
-   * - Always penalizes overflow.
-   * - Base points from total fill volume tier (existing).
-   * - Preference fill bonus/penalty (+50 in window, -25 way outside).
-   * - Returns a tipMultiplier (0.4..1.5) reflecting overall match quality.
-   *
-   * If no client is waiting, falls back to a neutral evaluation
-   * (base only, multiplier 1.0).
+   * Score the poured glass against the front client's specific preference.
+   *   - Both axes (fill + foam) inside their tolerance windows → 250 + combo
+   *   - One axis in window, the other slightly off              → 100
+   *   - One axis in, the other way off                          → 50
+   *   - Both off but at least some pour                         → 25
+   *   - Below wasted threshold (almost empty)                   → 0
+   *   - Overflow                                                → -50
+   * Tip multiplier comes straight from evaluateAgainstPreference.
+   * If no preference (defensive), fall back to a pure-volume tier.
    */
   scoreFor(totalPct, foamPct, liquidPct, overflow, preference) {
     const s = GAME_CONFIG.scoring;
-    // Overflow only when the caller already flagged it (the updateTap check
-    // already accounts for the foam overshoot allowance), OR when liquid
-    // alone is past the rim.
     if (overflow || liquidPct > 100) {
-      return {
-        score: s.overflowPenalty,
-        label: 'OVERFLOW! -50',
-        color: '#ff7a4a',
-        tipMultiplier: 0.3,
-      };
+      return { score: s.overflowPenalty, tipMultiplier: 0.3 };
     }
     if (totalPct < s.wastedBelow) {
-      return { score: 0, label: 'wasted', color: '#888888', tipMultiplier: 0.4 };
+      return { score: 0, tipMultiplier: 0.4 };
     }
 
-    // Base score from total fill tier (capped at 100 for tier math).
-    const tierPct = Math.min(totalPct, 100);
-    let base, baseLabel, color;
-    if (tierPct < s.decentBelow) {
-      base = Math.round(10 * tierPct);
-      baseLabel = `decent`;
-      color = '#cfe8a8';
-    } else if (tierPct < s.goodBelow) {
-      base = 100;
-      baseLabel = 'good';
-      color = '#f2d36b';
-    } else {
-      base = 250;
-      baseLabel = 'PERFECT pour';
-      color = '#ffd93d';
-    }
-
-    // No client to please — neutral.
     if (!preference) {
-      const sign = base >= 0 ? '+' : '';
-      return {
-        score: base,
-        label: `${baseLabel} ${sign}${base}`,
-        color,
-        tipMultiplier: 1.0,
-      };
+      // No client — neutral grade based on fill tier alone.
+      const tierPct = Math.min(totalPct, 100);
+      if (tierPct >= 96) return { score: 250, tipMultiplier: 1 };
+      if (tierPct >= 90) return { score: 100, tipMultiplier: 1 };
+      if (tierPct >= 70) return { score: 50, tipMultiplier: 1 };
+      return { score: 25, tipMultiplier: 1 };
     }
 
-    // Evaluate against the client's preference.
     const ev = evaluateAgainstPreference(liquidPct, foamPct, preference);
-    const total = base + ev.fillBonus;
-    const sign = total >= 0 ? '+' : '';
-    const prefNote =
-      ev.fillInWindow && ev.foamInWindow ? ` — ${ev.label}` :
-      !ev.fillInWindow || !ev.foamInWindow ? ` — ${ev.label}` : '';
-
-    if (ev.fillInWindow && ev.foamInWindow) color = '#ffd93d';
-    else if (!ev.fillInWindow && !ev.foamInWindow) color = '#e89c6b';
-
-    return {
-      score: total,
-      label: `${baseLabel} ${sign}${total}${prefNote}`,
-      color,
-      tipMultiplier: ev.tipMultiplier,
-    };
+    let score;
+    if (ev.fillInWindow && ev.foamInWindow) score = 250;
+    else if (ev.fillInWindow || ev.foamInWindow) {
+      // One axis perfect, judge severity of the miss on the other.
+      score = ev.matchScore > 0.6 ? 100 : 50;
+    } else {
+      score = ev.matchScore > 0.4 ? 50 : 25;
+    }
+    return { score, tipMultiplier: ev.tipMultiplier };
   }
 
   /**
-   * Pour quality independent of any client preference. Judges the cup
-   * purely on fill % and foam ratio — the bartender's critique.
+   * Pour quality judged against the client's specific preference. Returns
+   * the big-label feedback shown above the cup. "Perfect" requires both
+   * fill and foam to be within the client's tolerance windows — what that
+   * client called for, not an absolute 99% pour.
    */
-  pourQualityFor(liquidPct, foamPct, overflow) {
+  pourQualityFor(liquidPct, foamPct, overflow, preference) {
     const s = GAME_CONFIG.scoring;
-    const F = GAME_CONFIG.foam;
-
     if (overflow || liquidPct > 100) {
       return { label: 'OVERFLOW!', color: '#ff7a4a' };
     }
     if (liquidPct + foamPct < s.wastedBelow) {
       return { label: 'barely poured', color: '#888888' };
     }
-    if (liquidPct < 50) {
-      return { label: 'half empty', color: '#cfe8a8' };
+
+    // No client at the tap — fall back to absolute foam/fill grading.
+    if (!preference) {
+      if (liquidPct >= 96) {
+        return { label: 'PERFECT', color: '#ffd93d', perfect: true };
+      }
+      if (liquidPct >= 90) return { label: 'great pour', color: '#f2d36b' };
+      if (liquidPct >= 70) return { label: 'good pour', color: '#cfe8a8' };
+      return { label: 'decent pour', color: '#cfe8a8' };
     }
 
+    const ev = evaluateAgainstPreference(liquidPct, foamPct, preference);
+    if (ev.fillInWindow && ev.foamInWindow) {
+      return { label: 'PERFECT', color: '#ffd93d', perfect: true };
+    }
+
+    // Choose the worse miss to surface as the primary critique. If both
+    // axes miss, use "wasted" tone; if one matches, name the one that's off.
     const foamRatio = liquidPct > 1 ? (foamPct / liquidPct) * 100 : 0;
-    const foamLow = foamRatio < F.idealMinPct - 2;
-    const foamHigh = foamRatio > F.idealMaxPct + 4;
-    const foamIdeal = !foamLow && !foamHigh;
-
-    if (foamLow) return { label: 'flat pour', color: '#cfe8a8' };
-    if (foamHigh) return { label: 'too foamy', color: '#e89c6b' };
-
-    // Foam is in the ideal window — grade by fill tier.
-    if (liquidPct >= 99 && foamIdeal) {
-      return { label: 'PERFECT POUR', color: '#ffd93d' };
+    if (!ev.fillInWindow && !ev.foamInWindow) {
+      return { label: 'not their style', color: '#e89c6b' };
     }
-    if (liquidPct >= 90) return { label: 'great pour', color: '#f2d36b' };
-    if (liquidPct >= 70) return { label: 'good pour', color: '#cfe8a8' };
-    return { label: 'decent pour', color: '#cfe8a8' };
+    if (!ev.fillInWindow) {
+      const tooMuch = liquidPct > preference.fill.fillTarget;
+      return {
+        label: tooMuch ? 'too much' : 'too little',
+        color: '#f2d36b',
+      };
+    }
+    // foam off
+    const tooFoamy = foamRatio > preference.foam.foamRatioTarget;
+    return {
+      label: tooFoamy ? 'too foamy' : 'too flat',
+      color: '#f2d36b',
+    };
   }
 
   showFeedback(text, color, x, y, big = true) {
@@ -557,7 +636,8 @@ export default class GameScene extends Phaser.Scene {
   refreshHud() {
     const padded = String(Math.max(0, this.score)).padStart(6, '0');
     const sign = this.score < 0 ? '-' : ' ';
-    this.hudText.setText(`SCORE: ${sign}${padded}   TARGET: ${this.target}`);
+    this.scoreText.setText(`${sign}$${padded}`);
+    if (this.targetText) this.targetText.setText(`$${this.target}`);
     if (this.levelText) this.levelText.setText(`LEVEL ${this.level}`);
     if (this.timeText) {
       const secsLeft = Math.max(0, Math.ceil(this.timeRemainingMs / 1000));
@@ -565,5 +645,63 @@ export default class GameScene extends Phaser.Scene {
       this.timeText.setText(`${secsLeft}s`);
       this.timeText.setColor(lowTime ? '#ff7a4a' : '#e8d9a8');
     }
+    if (this.comboGroup) {
+      if (this.combo >= 2) {
+        const multiplier = Math.min(4, 1 + (this.combo - 1) * 0.5);
+        this.comboText.setText(`COMBO x${this.combo}`);
+        this.comboMultText.setText(`${multiplier}× SCORE`);
+        this.drawComboStars();
+        this.comboGroup.setVisible(true);
+      } else {
+        this.comboGroup.setVisible(false);
+      }
+    }
   }
+
+  /**
+   * Row of stars under the combo label. Lit star = combo level reached,
+   * dim star = remaining slot toward the 7-combo (4× multiplier) cap.
+   */
+  drawComboStars() {
+    const g = this.comboStars;
+    g.clear();
+    const TOTAL = 7; // combos until 4× cap
+    const lit = Math.min(this.combo, TOTAL);
+    const starSize = 12;
+    const gap = 4;
+    const y = 70;
+    for (let i = 0; i < TOTAL; i++) {
+      const cx = i * (starSize + gap) + starSize / 2;
+      const cy = y + starSize / 2;
+      drawStar(g, cx, cy, starSize / 2, i < lit);
+    }
+  }
+}
+
+/**
+ * Pixel-art star drawn as filled triangles via beginPath/fillPoints.
+ * `filled` toggles between bright yellow (earned) and dim grey (empty).
+ */
+function drawStar(g, cx, cy, r, filled) {
+  const points = [];
+  const spikes = 5;
+  const inner = r * 0.45;
+  for (let i = 0; i < spikes * 2; i++) {
+    const ang = (Math.PI / spikes) * i - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : inner;
+    points.push({ x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad });
+  }
+  if (filled) {
+    g.fillStyle(0xffd93d, 1);
+    g.lineStyle(2, 0x4a3724, 1);
+  } else {
+    g.fillStyle(0x3a2a1a, 1);
+    g.lineStyle(2, 0x4a3724, 0.6);
+  }
+  g.beginPath();
+  g.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) g.lineTo(points[i].x, points[i].y);
+  g.closePath();
+  g.fillPath();
+  g.strokePath();
 }

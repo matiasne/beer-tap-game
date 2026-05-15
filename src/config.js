@@ -2,8 +2,8 @@ export const GAME_CONFIG = {
   // Pouring — liquid arrives at this rate (% of total volume / second).
   pourRatePerSecond: 40,
   glassCapacity: 100,
-  overflowThreshold: 100, // liquid alone overflows at this point
-  foamOvershootAllowance: 18, // foam can crown above the rim by this many % of total volume before overflowing
+  overflowThreshold: 110, // liquid alone overflows at this point
+  foamOvershootAllowance: 30, // foam can crown above the rim by this many % of total volume before overflowing
 
   // Foam simulation
   foam: {
@@ -25,8 +25,8 @@ export const GAME_CONFIG = {
   scoring: {
     wastedBelow: 70, // < 70%: no points
     decentBelow: 90, // 70-89%: +10 * fillPct
-    goodBelow: 99, // 90-98%: +100
-    perfectBelow: 100.01, // 99-100%: +250
+    goodBelow: 96, // 90-95%: +100
+    perfectBelow: 100.01, // 96-100%: +250 (widened from 99-100 for forgiveness)
     overflowPenalty: -50, // > 100%: -50
     foamHeadBonus: 100, // bonus when foam head is within ideal range AND total fill is good+
     foamPenaltyTooMuch: -50, // foam > ~2x ideal max
@@ -48,7 +48,7 @@ export const GAME_CONFIG = {
     queueSize: 3, // visible clients per tap
     queueXOffset: 8, // each client behind shifts this much horizontally
     queueYOffset: -2, // and this much vertically (depth illusion)
-    queueScale: 3, // sprite scale for clients
+    queueScale: 2, // sprite scale for clients
     queueScaleFalloff: 0.85, // each further-back client shrinks by this factor
     queueAlphaFalloff: 0.92, // and dims
     frontBottomY: 140, // y-coord of the front client's feet/torso bottom

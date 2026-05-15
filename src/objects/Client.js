@@ -41,29 +41,35 @@ export default class Client extends Phaser.GameObjects.Container {
     this.body.setScale(C.queueScale);
     this.add(this.body);
 
-    // Speech bubble + preference icon — a chat bubble that holds a mini
-    // glass pictogram colored to the wanted beer. Bubble only shown for the
-    // front client (applyQueueSlot toggles visibility).
-    const iconX = -14;
-    const iconY = -28 * C.queueScale - 16 - 10;
-    this.prefBubble = scene.add.image(iconX, iconY, 'chat_bubble');
+    // Speech bubble + preference icon — chat bubble sits to the right of
+    // the client at head height, with its down-left tail pointing back at
+    // the head. Only shown for the front client (toggled in applyQueueSlot).
+    // Body sprite is 32x44 at queueScale=2, bottom-anchored. Head center is
+    // roughly at y = -(44-10)*2 = -68 in container-local coords.
+    const headCenterY = -(44 - 10) * C.queueScale; // approx
+    const bubbleScale = 1.6;
+    const halfBodyW = 16 * C.queueScale; // 32/2 source × scale
+    const halfBubbleW = (28 / 2) * bubbleScale;
+    const bubbleX = halfBodyW + halfBubbleW + 2; // small gap from the body
+    const bubbleY = headCenterY - 8; // slight lift so the down-left tail tip lands near the head
+    this.prefBubble = scene.add.image(bubbleX, bubbleY, 'chat_bubble');
     // Origin: x centered, y at the visual centre of the bubble interior
     // (not the texture centre, since the tail adds 6px to the bottom).
     this.prefBubble.setOrigin(0.5, 11 / 28);
-    this.prefBubble.setScale(1.4);
+    this.prefBubble.setScale(bubbleScale);
     this.add(this.prefBubble);
 
     this.prefIcon = scene.add.image(
-      iconX,
-      iconY,
+      bubbleX,
+      bubbleY,
       prefIconKey(this.preference, this.wantedBeerStyle),
     );
     this.prefIcon.setOrigin(0.5, 0.5);
-    this.prefIcon.setScale(1.4);
+    this.prefIcon.setScale(bubbleScale);
     this.add(this.prefIcon);
 
     // Tip text floating above the head, offset right of the icon.
-    this.tipText = scene.add.text(8, -28 * C.queueScale - 16, '', {
+    this.tipText = scene.add.text(8, -44 * C.queueScale - 16, '', {
       fontFamily: FONT_FAMILY,
       fontSize: '14px',
       color: '#ffd93d',
@@ -119,8 +125,9 @@ export default class Client extends Phaser.GameObjects.Container {
     this.tipText.setVisible(isFront);
     this.patienceBar.setVisible(isFront);
     this.patienceBarBg.setVisible(isFront);
-    this.prefIcon.setVisible(true);
-    this.prefIcon.setScale(isFront ? 1.4 : 1.0);
+    // Bubble + icon only on the front client — non-front clients would
+    // have a stray floating icon next to them otherwise.
+    this.prefIcon.setVisible(isFront);
     this.prefBubble.setVisible(isFront);
 
     this.setDepth(100 - slotIndex); // front draws on top

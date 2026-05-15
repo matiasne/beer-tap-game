@@ -462,123 +462,182 @@ export default class BootScene extends Phaser.Scene {
   }
 
   /**
-   * Client portrait: head + torso + arms leaning on the bar. 20x28 px,
-   * bottom-anchored to the bar edge. Adds per-variant hair styles,
-   * optional accessories (cap, beanie, bandana, glasses), facial features
-   * (eyebrows, nose, mouth, ear), and a tiny ground shadow under the torso.
+   * Client portrait at 32x44 px, bottom-anchored to the bar edge.
+   *
+   * Layout (y rows):
+   *   0     ground shadow strip (below torso)
+   *   1..6  hair / accessory top
+   *   3..16 head (12x12, rows 4-15 with chamfered corners)
+   *   17..20 neck
+   *   21..43 torso (with arms protruding sides)
+   *
+   * Per-variant: hair style, accessory (cap/beanie/bandana/glasses),
+   * shirt pattern (plain or stripe), facial features, hands gripping bar.
    */
   makeClient(key, variant) {
-    const w = 20;
-    const h = 28;
+    const w = 32;
+    const h = 44;
     const g = this.add.graphics();
 
     const { skin, hair, shirt, hairStyle = 'parted', accessory = null } = variant;
     const shirtDark = darken(shirt, 0.7);
+    const shirtDarker = darken(shirt, 0.5);
     const shirtLight = lighten(shirt, 1.2);
     const skinShadow = darken(skin, 0.8);
     const skinHighlight = lighten(skin, 1.08);
     const hairLight = lighten(hair, 1.25);
     const hairDark = darken(hair, 0.7);
 
-    // --- Ground shadow (floor contact under the torso) ---
+    // --- Ground shadow under the torso ---
     g.fillStyle(0x000000, 0.35);
-    g.fillRect(3, h - 1, w - 6, 1);
+    g.fillRect(5, h - 1, w - 10, 1);
 
-    // --- Torso block (sits on the bar) ---
+    // --- Torso (rows 21..43) ---
+    const torsoTop = 21;
     g.fillStyle(shirt, 1);
-    g.fillRect(3, 16, w - 6, h - 16);
-    // top-of-shoulder highlight
+    g.fillRect(6, torsoTop, w - 12, h - torsoTop);
+    // top-of-shoulder highlight (left-leaning)
     g.fillStyle(shirtLight, 1);
-    g.fillRect(4, 16, w - 8, 1);
+    g.fillRect(7, torsoTop, w - 14, 1);
+    g.fillRect(7, torsoTop + 1, 4, 1);
     // side shadows
     g.fillStyle(shirtDark, 1);
-    g.fillRect(3, 16, 1, h - 16); // left shadow
-    g.fillRect(w - 4, 16, 1, h - 16); // right shadow
-    // Placket / button line down the centre + 2 buttons
+    g.fillRect(6, torsoTop, 1, h - torsoTop);
+    g.fillRect(w - 7, torsoTop, 1, h - torsoTop);
+    // Optional vertical stripe pattern (vary per variant — every other
+    // variant gets a stripe to add visual diversity).
+    // Stripe is chosen deterministically via the shirt color's low bit.
+    if ((shirt & 1) === 1) {
+      g.fillStyle(shirtDarker, 0.6);
+      g.fillRect(11, torsoTop + 2, 1, h - torsoTop - 3);
+      g.fillRect(w - 12, torsoTop + 2, 1, h - torsoTop - 3);
+    }
+    // Placket / button line down centre + 3 buttons
+    const cx = w / 2;
     g.fillStyle(shirtDark, 1);
-    g.fillRect(9, 18, 1, h - 18);
+    g.fillRect(cx - 1, torsoTop + 3, 2, h - torsoTop - 3);
     g.fillStyle(shirtLight, 1);
-    g.fillRect(9, 20, 1, 1);
-    g.fillRect(9, 24, 1, 1);
-    // Collar / neckline notch
+    g.fillRect(cx, torsoTop + 5, 1, 1);
+    g.fillRect(cx, torsoTop + 11, 1, 1);
+    g.fillRect(cx, torsoTop + 17, 1, 1);
+    // Collar V-notch
     g.fillStyle(shirtDark, 1);
-    g.fillRect(8, 16, 4, 2);
-    g.fillStyle(darken(shirt, 0.5), 1);
-    g.fillRect(9, 17, 2, 1);
+    g.fillRect(cx - 3, torsoTop, 6, 3);
+    g.fillStyle(shirtDarker, 1);
+    g.fillRect(cx - 2, torsoTop + 1, 4, 1);
+    g.fillRect(cx - 1, torsoTop + 2, 2, 1);
 
-    // --- Arms resting on the bar ---
+    // --- Arms (protrude to the sides, slightly lower than the shoulders) ---
+    const armTop = torsoTop + 3;
+    const armBot = h - 6;
     g.fillStyle(shirt, 1);
-    g.fillRect(1, 18, 2, 6); // left arm
-    g.fillRect(w - 3, 18, 2, 6); // right arm
-    // arm shadow on the underside
-    g.fillStyle(shirtDark, 1);
-    g.fillRect(1, 23, 2, 1);
-    g.fillRect(w - 3, 23, 2, 1);
-    // cuffs (lighter band at the wrist)
+    g.fillRect(2, armTop, 4, armBot - armTop); // left arm
+    g.fillRect(w - 6, armTop, 4, armBot - armTop); // right arm
+    // arm side highlight + shadow
     g.fillStyle(shirtLight, 1);
-    g.fillRect(1, 22, 2, 1);
-    g.fillRect(w - 3, 22, 2, 1);
+    g.fillRect(2, armTop, 1, armBot - armTop);
+    g.fillRect(w - 6, armTop, 1, armBot - armTop);
+    g.fillStyle(shirtDark, 1);
+    g.fillRect(5, armTop, 1, armBot - armTop);
+    g.fillRect(w - 3, armTop, 1, armBot - armTop);
+    // Cuffs at wrist
+    g.fillStyle(shirtLight, 1);
+    g.fillRect(2, armBot - 2, 4, 1);
+    g.fillRect(w - 6, armBot - 2, 4, 1);
+    g.fillStyle(shirtDark, 1);
+    g.fillRect(2, armBot - 1, 4, 1);
+    g.fillRect(w - 6, armBot - 1, 4, 1);
     // Hands
     g.fillStyle(skin, 1);
-    g.fillRect(1, 24, 2, 2);
-    g.fillRect(w - 3, 24, 2, 2);
-    // tiny thumb pixel curling inward (gripping the bar edge)
+    g.fillRect(2, armBot, 4, 3);
+    g.fillRect(w - 6, armBot, 4, 3);
+    // Knuckle dividers (suggests fingers gripping the bar)
     g.fillStyle(skinShadow, 1);
-    g.fillRect(2, 25, 1, 1);
-    g.fillRect(w - 3, 25, 1, 1);
+    g.fillRect(3, armBot + 1, 1, 1);
+    g.fillRect(5, armBot + 1, 1, 1); // thumb crease
+    g.fillRect(w - 5, armBot + 1, 1, 1);
+    g.fillRect(w - 3, armBot + 1, 1, 1); // thumb crease
 
-    // --- Neck ---
+    // --- Neck (rows 17..20) ---
+    const neckTop = 17;
     g.fillStyle(skin, 1);
-    g.fillRect(8, 13, 4, 3);
+    g.fillRect(cx - 3, neckTop, 6, 4);
     g.fillStyle(skinShadow, 1);
-    g.fillRect(8, 15, 4, 1); // neck-to-collar shadow
-    g.fillRect(11, 13, 1, 2); // right side neck shadow
+    g.fillRect(cx - 3, neckTop + 3, 6, 1); // collar shadow
+    g.fillRect(cx + 1, neckTop, 2, 3); // right side neck shadow
 
-    // --- Head (8x8 with shaded corner pixels to fake rounded silhouette) ---
+    // --- Head (12x12 with chamfered corners for a softer silhouette) ---
+    const headX = cx - 6;
+    const headY = 4;
+    const headW = 12;
+    const headH = 12;
     g.fillStyle(skin, 1);
-    g.fillRect(6, 5, 8, 8);
+    g.fillRect(headX, headY, headW, headH);
+    // Chamfer the 4 corners (transparent pixel removal not possible w/
+    // Graphics; instead overpaint corners with a darker tone so the
+    // silhouette reads rounded).
+    g.fillStyle(0x1a1612, 1); // canvas-bg tone — blends with scene bg
+    g.fillRect(headX, headY, 1, 1);
+    g.fillRect(headX + headW - 1, headY, 1, 1);
+    g.fillRect(headX, headY + headH - 1, 1, 1);
+    g.fillRect(headX + headW - 1, headY + headH - 1, 1, 1);
+    // Skin shading
     g.fillStyle(skinShadow, 1);
-    g.fillRect(6, 5, 1, 1); // top-left bevel
-    g.fillRect(13, 5, 1, 1); // top-right bevel
-    g.fillRect(6, 12, 1, 1); // bottom-left bevel (jaw)
-    g.fillRect(13, 12, 1, 1); // bottom-right bevel (jaw)
-    // Cheek/face highlight on the left
+    // Right side shadow
+    g.fillRect(headX + headW - 2, headY + 1, 1, headH - 2);
+    // Chin shadow row
+    g.fillRect(headX + 1, headY + headH - 2, headW - 2, 1);
+    // Cheek highlight (left-leaning)
     g.fillStyle(skinHighlight, 1);
-    g.fillRect(7, 8, 1, 2);
-    // Right side overall shadow
-    g.fillStyle(skinShadow, 1);
-    g.fillRect(12, 6, 1, 6);
-    // Chin shadow (under jaw)
-    g.fillRect(7, 12, 6, 1);
-    // Ear bump on the right side
+    g.fillRect(headX + 2, headY + 5, 1, 3);
+    // Forehead highlight band
+    g.fillStyle(skinHighlight, 0.5);
+    g.fillRect(headX + 3, headY + 2, 4, 1);
+
+    // --- Ears (bumps on both sides at mid-head) ---
     g.fillStyle(skin, 1);
-    g.fillRect(14, 8, 1, 2);
+    g.fillRect(headX - 1, headY + 5, 1, 3);
+    g.fillRect(headX + headW, headY + 5, 1, 3);
     g.fillStyle(skinShadow, 1);
-    g.fillRect(14, 9, 1, 1);
+    g.fillRect(headX - 1, headY + 7, 1, 1);
+    g.fillRect(headX + headW, headY + 7, 1, 1);
 
     // --- Hair (style varies per-variant) ---
-    drawHair(g, hairStyle, hair, hairLight, hairDark);
+    drawHair(g, hairStyle, hair, hairLight, hairDark, headX, headY, headW);
 
-    // --- Eyebrows ---
+    // --- Eyebrows (2 px each, with a subtle angle for expression variation) ---
     g.fillStyle(hairDark, 1);
-    g.fillRect(8, 8, 1, 1);
-    g.fillRect(11, 8, 1, 1);
+    g.fillRect(headX + 2, headY + 5, 2, 1);
+    g.fillRect(headX + headW - 4, headY + 5, 2, 1);
 
-    // --- Eyes ---
+    // --- Eyes (3px wide: sclera + pupil + sclera highlight) ---
+    // White sclera background
+    g.fillStyle(0xfff4d6, 1);
+    g.fillRect(headX + 2, headY + 6, 3, 2);
+    g.fillRect(headX + headW - 5, headY + 6, 3, 2);
+    // Pupil (dark)
     g.fillStyle(0x1a1a1a, 1);
-    g.fillRect(8, 9, 1, 1);
-    g.fillRect(11, 9, 1, 1);
+    g.fillRect(headX + 3, headY + 6, 1, 2);
+    g.fillRect(headX + headW - 4, headY + 6, 1, 2);
+    // Tiny catchlight on the pupil
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(headX + 3, headY + 6, 1, 1);
+    g.fillRect(headX + headW - 4, headY + 6, 1, 1);
 
-    // --- Nose (single pixel shadow between/under the eyes) ---
+    // --- Nose (2px tall shadow + 1px highlight) ---
     g.fillStyle(skinShadow, 1);
-    g.fillRect(9, 10, 1, 1);
+    g.fillRect(headX + 5, headY + 7, 2, 2);
+    g.fillStyle(skinHighlight, 0.6);
+    g.fillRect(headX + 5, headY + 7, 1, 1);
 
-    // --- Mouth (slight smirk, offset right of center) ---
+    // --- Mouth (3px wide smirk with a darker lower lip pixel) ---
     g.fillStyle(0x4a2a1a, 1);
-    g.fillRect(9, 11, 2, 1);
+    g.fillRect(headX + 4, headY + 10, 3, 1);
+    g.fillStyle(0x2a1a10, 1);
+    g.fillRect(headX + 4, headY + 10, 1, 1); // left corner shadow
 
     // --- Accessory (drawn on top of head/hair) ---
-    drawAccessory(g, accessory, hair, hairLight, hairDark);
+    drawAccessory(g, accessory, hair, hairLight, hairDark, headX, headY, headW);
 
     g.generateTexture(key, w, h);
     g.destroy();
@@ -740,117 +799,178 @@ function lighten(color, factor) {
 
 // Hair silhouettes drawn over the 8x8 head at (6..13, 5..12). Each style
 // shapes the front/top differently so different clients read as distinct.
-function drawHair(g, style, hair, hairLight, hairDark) {
-  // Common cap + sideburns
+/**
+ * Hair drawn relative to the 12x12 head at (headX, headY..headY+11).
+ * Each style varies the cap silhouette and adds 1-2 hairline accents
+ * so the same color palette can read as different haircuts.
+ */
+function drawHair(g, style, hair, hairLight, hairDark, headX, headY, headW) {
+  // Common cap covering the top of the head + sideburns.
   g.fillStyle(hair, 1);
-  g.fillRect(6, 3, 8, 4); // top cap
-  g.fillRect(5, 4, 1, 3); // left sideburn
-  g.fillRect(14, 4, 1, 3); // right sideburn (drawn over ear shadow)
+  // Cap covers rows headY-2..headY+3 across most of the head width.
+  g.fillRect(headX, headY - 1, headW, 5);
+  // Sideburns hang below the cap on both sides.
+  g.fillRect(headX - 1, headY + 1, 1, 4);
+  g.fillRect(headX + headW, headY + 1, 1, 4);
 
   if (style === 'parted') {
-    // Side part — small forehead gap on the right, highlight on left side
+    // Side part — a dark hairline band on the right half + bright highlight
+    // strip on the left side of the crown.
     g.fillStyle(hairDark, 1);
-    g.fillRect(10, 6, 3, 1); // dark band at hairline (right half)
+    g.fillRect(headX + headW / 2, headY + 3, headW / 2 - 1, 1);
     g.fillStyle(hairLight, 1);
-    g.fillRect(7, 3, 3, 1);
+    g.fillRect(headX + 1, headY - 1, headW / 2 - 1, 1);
+    g.fillRect(headX + 2, headY, 2, 1);
   } else if (style === 'swept') {
-    // Swept forward — a forelock dropping over the brow on the left
+    // Forelock falling over the brow on the left.
     g.fillStyle(hair, 1);
-    g.fillRect(7, 6, 2, 1); // forelock
+    g.fillRect(headX + 1, headY + 3, 3, 1);
     g.fillStyle(hairLight, 1);
-    g.fillRect(7, 3, 5, 1);
+    g.fillRect(headX + 1, headY - 1, headW - 4, 1);
+    g.fillRect(headX + 2, headY, 4, 1);
   } else if (style === 'messy') {
-    // Asymmetric tufts on top
+    // Asymmetric tufts poking up above the cap.
     g.fillStyle(hair, 1);
-    g.fillRect(6, 2, 1, 1);
-    g.fillRect(8, 2, 1, 1);
-    g.fillRect(11, 2, 1, 1);
-    g.fillRect(13, 2, 1, 1);
+    g.fillRect(headX, headY - 2, 1, 1);
+    g.fillRect(headX + 2, headY - 2, 1, 1);
+    g.fillRect(headX + 5, headY - 2, 1, 1);
+    g.fillRect(headX + 7, headY - 2, 1, 1);
+    g.fillRect(headX + headW - 2, headY - 2, 1, 1);
     g.fillStyle(hairLight, 1);
-    g.fillRect(7, 3, 2, 1);
-    g.fillRect(11, 3, 2, 1);
+    g.fillRect(headX + 1, headY - 1, 2, 1);
+    g.fillRect(headX + 6, headY - 1, 3, 1);
   } else if (style === 'flat') {
-    // Buzz/flat — keep the cap but no highlights, slightly shorter forehead
+    // Buzz cut — short flat top, darker forehead band, no highlights.
     g.fillStyle(hairDark, 1);
-    g.fillRect(6, 6, 8, 1);
+    g.fillRect(headX, headY + 3, headW, 1);
+    g.fillStyle(hair, 1);
+    g.fillRect(headX, headY - 1, headW, 4); // override the default 5-row cap
   } else {
     g.fillStyle(hairLight, 1);
-    g.fillRect(7, 3, 4, 1);
+    g.fillRect(headX + 2, headY - 1, headW - 4, 1);
   }
 }
 
-// Optional accessory drawn over hair. Keeps within the head bounds so it
-// doesn't bleed into the torso.
-function drawAccessory(g, accessory, hair, hairLight, hairDark) {
+/**
+ * Optional accessory drawn on top of the hair/head. Stays within the
+ * 12x12 head bounds (with a small allowance for brims and pom-poms).
+ */
+function drawAccessory(g, accessory, hair, hairLight, hairDark, headX, headY, headW) {
   if (!accessory) return;
 
   if (accessory === 'cap') {
-    // Baseball cap — dome crown + brim jutting out to the left.
+    // Baseball cap — dome crown + brim jutting left.
     const crown = 0x2a2a2a;
     const crownLight = 0x4a4a4a;
+    const crownAccent = 0xc33a3a;
     g.fillStyle(crown, 1);
-    g.fillRect(6, 3, 8, 3); // crown body
-    g.fillRect(5, 5, 1, 1); // left edge
+    g.fillRect(headX, headY - 2, headW, 5); // crown body
+    g.fillRect(headX - 1, headY, 1, 3); // left edge
     g.fillStyle(crownLight, 1);
-    g.fillRect(7, 3, 5, 1); // top highlight
-    // brim — 1px thick, extends left of the head
+    g.fillRect(headX + 1, headY - 2, headW - 3, 1); // top highlight
+    g.fillRect(headX + 2, headY - 1, 3, 1); // diagonal sheen
+    // Brim — 2px thick, extends left
     g.fillStyle(crown, 1);
-    g.fillRect(2, 6, 5, 1);
+    g.fillRect(headX - 4, headY + 3, 8, 2);
     g.fillStyle(crownLight, 1);
-    g.fillRect(2, 6, 1, 1); // brim tip highlight
-    // button on top
-    g.fillStyle(0x8a3a3a, 1);
-    g.fillRect(9, 2, 1, 1);
+    g.fillRect(headX - 4, headY + 3, 1, 1); // brim tip highlight
+    g.fillStyle(0x1a1a1a, 1);
+    g.fillRect(headX - 4, headY + 4, 8, 1); // brim underside shadow
+    // Logo accent on the front of the crown
+    g.fillStyle(crownAccent, 1);
+    g.fillRect(headX + 2, headY, 2, 2);
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(headX + 2, headY, 1, 1);
   } else if (accessory === 'beanie') {
-    // Knit beanie — covers the cap, fold band at the bottom.
+    // Knit beanie — taller than the cap, with a fold band at the bottom
+    // and a pom-pom on top.
     const beanie = 0x6a3a2a;
     const beanieLight = 0x8a5a3a;
     const beanieDark = 0x4a2418;
+    const pom = 0xe8d9a8;
     g.fillStyle(beanie, 1);
-    g.fillRect(6, 2, 8, 5);
-    g.fillRect(5, 4, 1, 3);
-    g.fillRect(14, 4, 1, 3);
+    g.fillRect(headX, headY - 3, headW, 7);
+    g.fillRect(headX - 1, headY - 1, 1, 5);
+    g.fillRect(headX + headW, headY - 1, 1, 5);
+    // Knit ribbing — alternating darker columns
+    g.fillStyle(beanieDark, 0.5);
+    for (let i = 0; i < headW; i += 3) {
+      g.fillRect(headX + i, headY - 2, 1, 5);
+    }
+    // Highlights along the crown
     g.fillStyle(beanieLight, 1);
-    g.fillRect(7, 2, 5, 1); // top knit highlight
-    g.fillRect(6, 4, 1, 1);
+    g.fillRect(headX + 1, headY - 3, headW - 3, 1);
+    g.fillRect(headX, headY - 2, 1, 1);
+    // Fold band at the bottom (across the hairline)
     g.fillStyle(beanieDark, 1);
-    g.fillRect(6, 6, 8, 1); // fold band
-    // tiny pom
+    g.fillRect(headX, headY + 4, headW, 1);
+    g.fillStyle(beanie, 1);
+    g.fillRect(headX, headY + 3, headW, 1);
     g.fillStyle(beanieLight, 1);
-    g.fillRect(9, 1, 2, 1);
+    g.fillRect(headX + 1, headY + 3, headW - 2, 1);
+    // Pom-pom on top, centered
+    const pomX = headX + headW / 2 - 1;
+    g.fillStyle(pom, 1);
+    g.fillRect(pomX, headY - 5, 2, 2);
+    g.fillStyle(darken(pom, 0.7), 1);
+    g.fillRect(pomX + 1, headY - 4, 1, 1);
+    g.fillStyle(lighten(pom, 1.2), 1);
+    g.fillRect(pomX, headY - 5, 1, 1);
   } else if (accessory === 'bandana') {
-    // Bandana tied around forehead — band across the hairline.
+    // Bandana tied around forehead — band across the hairline with a knot
+    // tail dangling on the right.
     const cloth = 0xc33a3a;
     const clothLight = 0xe85a5a;
     const clothDark = 0x8a1a1a;
     g.fillStyle(cloth, 1);
-    g.fillRect(6, 6, 8, 2);
+    g.fillRect(headX, headY + 3, headW, 3);
+    // Top highlight + bottom shadow
     g.fillStyle(clothLight, 1);
-    g.fillRect(6, 6, 8, 1);
+    g.fillRect(headX, headY + 3, headW, 1);
     g.fillStyle(clothDark, 1);
-    g.fillRect(6, 7, 1, 1);
-    // knot tail on the right side
+    g.fillRect(headX, headY + 5, headW, 1);
+    // Polka dots — 3 small dots for a classic bandana feel
+    g.fillStyle(clothLight, 0.9);
+    g.fillRect(headX + 2, headY + 4, 1, 1);
+    g.fillRect(headX + 6, headY + 4, 1, 1);
+    g.fillRect(headX + 10, headY + 4, 1, 1);
+    // Knot + tail on the right side, hanging down
     g.fillStyle(cloth, 1);
-    g.fillRect(14, 6, 1, 1);
+    g.fillRect(headX + headW, headY + 4, 2, 2);
+    g.fillRect(headX + headW + 1, headY + 6, 1, 3);
     g.fillStyle(clothDark, 1);
-    g.fillRect(14, 7, 1, 1);
+    g.fillRect(headX + headW + 1, headY + 8, 1, 1);
+    g.fillStyle(clothLight, 1);
+    g.fillRect(headX + headW, headY + 4, 1, 1);
   } else if (accessory === 'glasses') {
-    // Round-ish glasses — frames over the eyes, bridge in the middle.
-    const frame = 0x2a1a10;
+    // Round wire-frame glasses — two distinct circular lenses with a bridge.
+    const frame = 0x1a1a10;
+    const frameMetal = 0x8a8a8a;
+    // Left lens (square-ish ring around the eye at headX+2, headY+6, 3x2)
+    const lx = headX + 1;
+    const ly = headY + 5;
     g.fillStyle(frame, 1);
-    // left lens
-    g.fillRect(7, 9, 3, 1);
-    g.fillRect(7, 8, 1, 2);
-    g.fillRect(9, 8, 1, 2);
-    // right lens
-    g.fillRect(10, 9, 3, 1);
-    g.fillRect(10, 8, 1, 2);
-    g.fillRect(12, 8, 1, 2);
-    // bridge
-    g.fillRect(10, 9, 1, 1);
-    // a tiny reflection in each lens
-    g.fillStyle(0xffffff, 0.7);
-    g.fillRect(8, 9, 1, 1);
-    g.fillRect(11, 9, 1, 1);
+    g.fillRect(lx, ly, 5, 1); // top
+    g.fillRect(lx, ly + 3, 5, 1); // bottom
+    g.fillRect(lx, ly + 1, 1, 2); // left
+    g.fillRect(lx + 4, ly + 1, 1, 2); // right
+    // Right lens
+    const rx = headX + headW - 6;
+    g.fillStyle(frame, 1);
+    g.fillRect(rx, ly, 5, 1);
+    g.fillRect(rx, ly + 3, 5, 1);
+    g.fillRect(rx, ly + 1, 1, 2);
+    g.fillRect(rx + 4, ly + 1, 1, 2);
+    // Bridge
+    g.fillStyle(frame, 1);
+    g.fillRect(lx + 5, ly + 1, rx - lx - 5, 1);
+    // Metal sheen on the top of each lens
+    g.fillStyle(frameMetal, 0.5);
+    g.fillRect(lx + 1, ly, 3, 1);
+    g.fillRect(rx + 1, ly, 3, 1);
+    // Lens reflection (white) — a single bright pixel in each lens
+    g.fillStyle(0xffffff, 0.9);
+    g.fillRect(lx + 3, ly + 1, 1, 1);
+    g.fillRect(rx + 3, ly + 1, 1, 1);
   }
 }
