@@ -54,7 +54,9 @@ export default class GameScene extends Phaser.Scene {
       const style = this.beerStyles[i];
       const tap = new Tap(this, x, GAME_CONFIG.tapY, GAME_CONFIG.glassY - 40, style);
       const glass = new Glass(this, x, GAME_CONFIG.glassY, /* shape */ null, style);
-      const queue = new ClientQueue(this, x, this.beerStyles);
+      // Each tap dispenses one beer style and can't be changed mid-level,
+      // so clients at this queue only ever want that same style.
+      const queue = new ClientQueue(this, x, [style]);
       queue.onAngryLeave(() => {
         this.score += GAME_CONFIG.clients.angryPenalty;
         this.refreshHud();
@@ -320,7 +322,7 @@ export default class GameScene extends Phaser.Scene {
     const styleMismatch =
       frontWantedStyle != null && pouredStyle.key !== frontWantedStyle.key;
 
-    const { score, label, color, tipMultiplier } = this.scoreFor(
+    const { score, tipMultiplier } = this.scoreFor(
       totalPct,
       foamPct,
       liquidPct,
@@ -328,7 +330,11 @@ export default class GameScene extends Phaser.Scene {
       frontPref,
     );
     this.score += score;
-    this.showFeedback(label, color, glass.x, glass.y - 60);
+
+    // Primary feedback — describes the pour itself, independent of who's
+    // waiting. The bartender's critique, not the client's reaction.
+    const quality = this.pourQualityFor(liquidPct, foamPct, overflow);
+    this.showFeedback(quality.label, quality.color, glass.x, glass.y - 70, true);
 
     // Overflow path: penalty applied, no client served, no glass swap.
     // The bartender dunks the same glass and brings it back empty.
@@ -337,6 +343,15 @@ export default class GameScene extends Phaser.Scene {
       this.idleMs[i] = null;
       glass.dumpAndReset();
       return;
+    }
+
+    // Secondary feedback — client's preference reaction, smaller. Only
+    // when the pour misses what they asked for.
+    if (frontPref) {
+      const ev = evaluateAgainstPreference(liquidPct, foamPct, frontPref);
+      if (!ev.fillInWindow || !ev.foamInWindow) {
+        this.showFeedback(ev.label, '#a89668', glass.x, glass.y - 40, false);
+      }
     }
 
     // Style mismatch: client took the glass but won't tip you for it.
@@ -358,7 +373,13 @@ export default class GameScene extends Phaser.Scene {
       const mulNote =
         tipMultiplier > 1.2 ? ' (generous!)' :
         tipMultiplier < 0.6 ? ' (stingy)' : '';
-      this.showFeedback(`+$${tip} tip${mulNote}`, '#ffd93d', glass.x + 40, glass.y - 90);
+      // Tip floats over the client (who's paying), not the cup.
+      this.showFeedback(
+        `+$${tip} tip${mulNote}`,
+        '#ffd93d',
+        GAME_CONFIG.tapXs[i],
+        GAME_CONFIG.clients.frontBottomY - 80,
+      );
     }
     this.refreshHud();
 
@@ -455,20 +476,73 @@ export default class GameScene extends Phaser.Scene {
     };
   }
 
-  showFeedback(text, color, x, y) {
-    const t = this.add.text(x, y, text, {
+  /**
+   * Pour quality independent of any client preference. Judges the cup
+   * purely on fill % and foam ratio — the bartender's critique.
+   */
+  pourQualityFor(liquidPct, foamPct, overflow) {
+    const s = GAME_CONFIG.scoring;
+    const F = GAME_CONFIG.foam;
+
+    if (overflow || liquidPct > 100) {
+      return { label: 'OVERFLOW!', color: '#ff7a4a' };
+    }
+    if (liquidPct + foamPct < s.wastedBelow) {
+      return { label: 'barely poured', color: '#888888' };
+    }
+    if (liquidPct < 50) {
+      return { label: 'half empty', color: '#cfe8a8' };
+    }
+
+    const foamRatio = liquidPct > 1 ? (foamPct / liquidPct) * 100 : 0;
+    const foamLow = foamRatio < F.idealMinPct - 2;
+    const foamHigh = foamRatio > F.idealMaxPct + 4;
+    const foamIdeal = !foamLow && !foamHigh;
+
+    if (foamLow) return { label: 'flat pour', color: '#cfe8a8' };
+    if (foamHigh) return { label: 'too foamy', color: '#e89c6b' };
+
+    // Foam is in the ideal window — grade by fill tier.
+    if (liquidPct >= 99 && foamIdeal) {
+      return { label: 'PERFECT POUR', color: '#ffd93d' };
+    }
+    if (liquidPct >= 90) return { label: 'great pour', color: '#f2d36b' };
+    if (liquidPct >= 70) return { label: 'good pour', color: '#cfe8a8' };
+    return { label: 'decent pour', color: '#cfe8a8' };
+  }
+
+  showFeedback(text, color, x, y, big = true) {
+    const t = this.add.text(0, 0, text, {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: big ? '24px' : '13px',
+      fontStyle: big ? 'bold' : 'normal',
       color,
+      stroke: big ? '#1a120a' : undefined,
+      strokeThickness: big ? 3 : 0,
     });
     t.setOrigin(0.5, 0.5);
+
+    // Rounded box behind the text for readability.
+    const padX = big ? 12 : 6;
+    const padY = big ? 6 : 3;
+    const boxW = Math.ceil(t.width) + padX * 2;
+    const boxH = Math.ceil(t.height) + padY * 2;
+    const box = this.add.graphics();
+    box.fillStyle(0x1a120a, big ? 0.85 : 0.7);
+    box.fillRoundedRect(-boxW / 2, -boxH / 2, boxW, boxH, big ? 6 : 4);
+    box.lineStyle(big ? 2 : 1, 0x4a3724, 1);
+    box.strokeRoundedRect(-boxW / 2, -boxH / 2, boxW, boxH, big ? 6 : 4);
+
+    const container = this.add.container(x, y, [box, t]);
+    container.setDepth(50);
+
     this.tweens.add({
-      targets: t,
-      y: y - 40,
+      targets: container,
+      y: y - 50,
       alpha: 0,
-      duration: 900,
+      duration: 1600,
       ease: 'Cubic.out',
-      onComplete: () => t.destroy(),
+      onComplete: () => container.destroy(),
     });
   }
 
