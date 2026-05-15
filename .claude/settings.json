@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm -v)",
+      "Bash(npm install *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:5173/)",
+      "Bash(curl -s http://127.0.0.1:5173/)",
+      "Bash(curl -s -o /dev/null -w \"main.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/main.js\")",
+      "Bash(curl -s -o /dev/null -w \"BootScene.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/scenes/BootScene.js\")",
+      "Bash(curl -s -o /dev/null -w \"GameScene.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/scenes/GameScene.js\")",
+      "Bash(curl -s -o /dev/null -w \"Tap.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/Tap.js\")",
+      "Bash(curl -s -o /dev/null -w \"Glass.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/Glass.js\")",
+      "Bash(curl -s -o /dev/null -w \"page: %{http_code}\\\\n\" http://127.0.0.1:5173/)",
+      "Bash(curl -s -o /dev/null -w \"Client.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/Client.js\")",
+      "Bash(curl -s -o /dev/null -w \"ClientQueue.js: %{http_code}\\\\n\" \"http://127.0.0.1:5173/src/objects/ClientQueue.js\")"
+    ]
+  }
+}
