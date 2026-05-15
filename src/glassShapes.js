@@ -14,6 +14,10 @@
  * cumulative-volume table from `widthProfile` so the visible fill height
  * tracks volume, not height — narrow sections rise fast, wide sections
  * rise slow.
+ *
+ * Native sizes were doubled when the canvas moved to 1920×1080 so the
+ * drawing code has twice as many pixels to add detail (richer rim, base
+ * bevel, thicker handles, multi-pixel stem highlights, etc.).
  */
 
 // Helpers
@@ -31,12 +35,12 @@ export const GLASS_SHAPES = [
   {
     key: 'pint',
     label: 'Pint',
-    outerWidthPx: 32,
-    outerHeightPx: 48,
-    innerWidthPx: 22,
-    innerHeightPx: 38,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 64,
+    outerHeightPx: 96,
+    innerWidthPx: 44,
+    innerHeightPx: 76,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: false,
     foamFactor: 1.0,
     widthProfile: (t) => lerp(0.78, 1.0, t),
@@ -47,12 +51,12 @@ export const GLASS_SHAPES = [
   {
     key: 'pilsner',
     label: 'Pilsner',
-    outerWidthPx: 26,
-    outerHeightPx: 54,
-    innerWidthPx: 16,
-    innerHeightPx: 44,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 52,
+    outerHeightPx: 108,
+    innerWidthPx: 32,
+    innerHeightPx: 88,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: false,
     foamFactor: 0.7,
     widthProfile: (t) => lerp(0.6, 1.0, t),
@@ -63,12 +67,12 @@ export const GLASS_SHAPES = [
   {
     key: 'mug',
     label: 'Stein',
-    outerWidthPx: 38,
-    outerHeightPx: 44,
-    innerWidthPx: 26,
-    innerHeightPx: 34,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 76,
+    outerHeightPx: 88,
+    innerWidthPx: 52,
+    innerHeightPx: 68,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: true,
     foamFactor: 1.0,
     widthProfile: () => 1.0,
@@ -79,12 +83,12 @@ export const GLASS_SHAPES = [
   {
     key: 'tulip',
     label: 'Tulip',
-    outerWidthPx: 32,
-    outerHeightPx: 48,
-    innerWidthPx: 22,
-    innerHeightPx: 38,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 64,
+    outerHeightPx: 96,
+    innerWidthPx: 44,
+    innerHeightPx: 76,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: false,
     foamFactor: 1.4,
     widthProfile: (t) => {
@@ -100,12 +104,12 @@ export const GLASS_SHAPES = [
   {
     key: 'snifter',
     label: 'Snifter',
-    outerWidthPx: 36,
-    outerHeightPx: 38,
-    innerWidthPx: 26,
-    innerHeightPx: 28,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 72,
+    outerHeightPx: 76,
+    innerWidthPx: 52,
+    innerHeightPx: 56,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: false,
     foamFactor: 1.3,
     widthProfile: (t) => {
@@ -121,12 +125,12 @@ export const GLASS_SHAPES = [
   {
     key: 'weizen',
     label: 'Weizen',
-    outerWidthPx: 30,
-    outerHeightPx: 56,
-    innerWidthPx: 22,
-    innerHeightPx: 46,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 60,
+    outerHeightPx: 112,
+    innerWidthPx: 44,
+    innerHeightPx: 92,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: false,
     foamFactor: 1.5,
     widthProfile: (t) => {
@@ -142,12 +146,12 @@ export const GLASS_SHAPES = [
   {
     key: 'goblet',
     label: 'Goblet',
-    outerWidthPx: 36,
-    outerHeightPx: 50,
-    innerWidthPx: 28,
-    innerHeightPx: 30,
-    topPaddingPx: 4,
-    bottomPaddingPx: 16, // taller bottom padding makes room for the stem+foot
+    outerWidthPx: 72,
+    outerHeightPx: 100,
+    innerWidthPx: 56,
+    innerHeightPx: 60,
+    topPaddingPx: 8,
+    bottomPaddingPx: 32, // taller bottom padding makes room for the stem+foot
     handle: false,
     stem: true,
     foamFactor: 1.25,
@@ -163,12 +167,12 @@ export const GLASS_SHAPES = [
   {
     key: 'flute',
     label: 'Flute',
-    outerWidthPx: 18,
-    outerHeightPx: 58,
-    innerWidthPx: 10,
-    innerHeightPx: 48,
-    topPaddingPx: 4,
-    bottomPaddingPx: 6,
+    outerWidthPx: 36,
+    outerHeightPx: 116,
+    innerWidthPx: 20,
+    innerHeightPx: 96,
+    topPaddingPx: 8,
+    bottomPaddingPx: 12,
     handle: false,
     foamFactor: 0.55,
     widthProfile: (t) => lerp(0.7, 1.0, t),

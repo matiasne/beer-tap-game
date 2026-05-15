@@ -10,10 +10,14 @@ import ScoreboardScene from './scenes/ScoreboardScene.js';
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
-  width: 800,
-  height: 600,
+  width: 1920,
+  height: 1080,
   pixelArt: true,
   backgroundColor: '#1a1612',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
   scene: [
     BootScene,
     MenuScene,

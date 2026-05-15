@@ -64,33 +64,90 @@ export default class Glass extends Phaser.GameObjects.Container {
 
     // Per-glass deterministic random — used for foam edge wave + bubble dots.
     this.rng = mulberry32(Math.floor(Math.random() * 1e9));
-    // Precompute a wave pattern (one offset per "column" position).
-    const colCount = Math.max(2, innerW);
-    this.foamWave = new Array(colCount);
-    for (let i = 0; i < colCount; i++) {
-      this.foamWave[i] = Math.round(this.rng() * 2); // 0..2 px of extra height
+
+    // --- Lumpy crown profile ---
+    // The top edge of the foam reads as a sequence of bubble-cluster
+    // "lumps" rather than per-column noise. Each lump spans `width`
+    // columns and rises `height` source pixels above the base foam line.
+    // Lumps are stable per glass.
+    const lumps = [];
+    let col = -1; // start a hair to the left so the leftmost lump can poke out
+    while (col < innerW + 2) {
+      const lumpW = 3 + Math.floor(this.rng() * 4); // 3..6 src px wide
+      const lumpH = 2 + Math.floor(this.rng() * 4); // 2..5 src px tall
+      lumps.push({ col, width: lumpW, height: lumpH });
+      col += lumpW + (this.rng() < 0.3 ? 1 : 0); // occasional 1-col valley
     }
-    // Precompute bubble dots (row offset 0..foamHeight-1, col 0..innerW-1).
-    // Each entry: { rowFromTop, col, kind: 'dark'|'light' }.
+    this.foamLumps = lumps;
+
+    // Bubble blobs — proper little circle-ish shapes rather than single
+    // pixels. Each bubble has a row/col offset (0..1, multiplied at draw
+    // time) and a radius of 1 or 2 source pixels. Radius-2 bubbles get a
+    // dark outline ring + bright center; radius-1 are single dots.
+    const areaFactor = Math.max(1, Math.round((innerW * innerH) / 800));
+    const bubbleCount = 14 * areaFactor;
     this.bubbles = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < bubbleCount; i++) {
       this.bubbles.push({
-        rOff: this.rng(), // 0..1 — multiplied by current foam height at draw time
-        cOff: this.rng(), // 0..1 — multiplied by current row width
-        kind: this.rng() < 0.5 ? 'dark' : 'light',
+        rOff: this.rng(),
+        cOff: this.rng(),
+        // ~30% are bigger ringed bubbles, the rest are small dots.
+        radius: this.rng() < 0.3 ? 2 : 1,
+        kind: this.rng() < 0.4 ? 'dark' : 'light',
       });
     }
     // Stable crown bubble offsets (computed once so they don't shimmer per-frame).
+    const crownCount = 6 * areaFactor;
     this.crownBubbles = [];
-    for (let i = 0; i < 5; i++) {
-      this.crownBubbles.push({ rOff: this.rng(), cOff: this.rng() });
+    for (let i = 0; i < crownCount; i++) {
+      this.crownBubbles.push({
+        rOff: this.rng(),
+        cOff: this.rng(),
+        radius: this.rng() < 0.4 ? 2 : 1,
+      });
+    }
+
+    // Foam curtain — every source-pixel column across the rim gets a
+    // downward foam strip with a varied "max drip length" so the bottom
+    // edge reads as wavy/dripping rather than a flat skirt. A few stable
+    // columns are tagged as "heavy" — they hang the lowest and get a
+    // cartoony teardrop bead at the tip when at full overshoot.
+    const topHalfFracInit = this.volPerRow[innerH - 1];
+    const topHalfPxInit = Math.max(1, Math.round((innerW * topHalfFracInit) / 2));
+    // Span: rim width (2 × topHalfPx) + 2 rim "ears" + 1 px extra spill
+    // on each side so the curtain visibly hangs over the lip outline.
+    const curtainCols = topHalfPxInit * 2 + 4;
+    this.foamCurtain = new Array(curtainCols);
+    for (let i = 0; i < curtainCols; i++) {
+      // Most columns hang short; a smaller fraction are medium; a few are heavy.
+      const roll = this.rng();
+      let maxLenFrac;
+      let heavy = false;
+      if (roll < 0.55) {
+        // Short fringe — base curtain that's always present.
+        maxLenFrac = 0.05 + this.rng() * 0.12; // 5%-17%
+      } else if (roll < 0.88) {
+        // Medium drips — visible mid-pour.
+        maxLenFrac = 0.18 + this.rng() * 0.22; // 18%-40%
+      } else {
+        // Heavy runs — the dramatic long drips with beads.
+        maxLenFrac = 0.45 + this.rng() * 0.5; // 45%-95%
+        heavy = true;
+      }
+      this.foamCurtain[i] = {
+        maxLenFrac,
+        heavy,
+        // Some columns wait for more overshoot before appearing so the
+        // curtain "grows" from the rim outward.
+        startThreshold: this.rng() * 0.25,
+      };
     }
 
     // All glasses share the same bottom baseline so they sit flat on the
     // bar regardless of their outer height. Baseline = half of the tallest
     // glass; shorter glasses get shifted down in local space so their
     // bottoms land at the same screen Y as the tallest one.
-    const BASELINE_HALF_H = 58 / 2; // tallest outerHeightPx in glassShapes
+    const BASELINE_HALF_H = 116 / 2; // tallest outerHeightPx in glassShapes
     const halfH = this.shape.outerHeightPx / 2;
     const bottomBaselineOffset = (BASELINE_HALF_H - halfH) * SCALE;
 
@@ -104,9 +161,13 @@ export default class Glass extends Phaser.GameObjects.Container {
     this.innerTopLocalY = (-halfH + this.shape.topPaddingPx) * SCALE + bottomBaselineOffset;
 
     this.fillGfx = scene.add.graphics();
+    // Drips are drawn ON TOP of the glass sprite so the foam runs visibly
+    // over the outside of the cup rather than hiding behind the outline.
+    this.dripGfx = scene.add.graphics();
 
     this.add(this.fillGfx);
     this.add(this.glassSprite);
+    this.add(this.dripGfx);
 
     this.spawnAnim();
   }
@@ -155,6 +216,7 @@ export default class Glass extends Phaser.GameObjects.Container {
 
   refreshFill() {
     this.fillGfx.clear();
+    this.dripGfx.clear();
 
     const liquidPct = Math.max(0, this.fillLevel);
     const foamPct = Math.max(0, this.foamLevel);
@@ -204,21 +266,26 @@ export default class Glass extends Phaser.GameObjects.Container {
     // Map the above-rim foam % to source-pixel height; reuses the same
     // "% volume → pixels" ratio as the inside rows so it visually matches.
     if (aboveRimFoamPct > 0) {
-      // Max overshoot in source pixels — uses the foam config allowance as
-      // the upper bound of how tall the crown can be.
-      const maxOvershootPx = Math.max(
-        2,
-        Math.round(
-          (GAME_CONFIG.foamOvershootAllowance / GAME_CONFIG.glassCapacity) *
-            this.innerH,
-        ) * 1.4, // a little extra room for the rounded mound
-      );
+      // Cap the mound height relative to its BASE WIDTH, not glass height.
+      // A dome that's taller than ~70% of its half-width starts to look
+      // conical regardless of profile, so we hard-clamp it.
+      const baseWidthFrac = this.volPerRow[this.innerH - 1];
+      const baseHalfPx = Math.max(1, Math.round((this.innerW * baseWidthFrac) / 2));
+      const heightFromGlass = Math.round(
+        (GAME_CONFIG.foamOvershootAllowance / GAME_CONFIG.glassCapacity) *
+          this.innerH,
+      ) * 1.4;
+      const heightFromBase = Math.round(baseHalfPx * 0.7); // dome aspect cap
+      const maxOvershootPx = Math.max(2, Math.min(heightFromGlass, heightFromBase));
       const overshootRatio = Math.min(
         1,
         aboveRimFoamPct / GAME_CONFIG.foamOvershootAllowance,
       );
       const overshootPx = Math.max(1, Math.round(maxOvershootPx * overshootRatio));
       this.drawCrownAboveRim(overshootPx);
+      // Foam runs down the outside of the cup. Driven by the same overshoot
+      // ratio so drips lengthen progressively before the overflow trigger.
+      this.drawFoamCurtain(overshootRatio);
     }
   }
 
@@ -233,37 +300,68 @@ export default class Glass extends Phaser.GameObjects.Container {
     const baseHalfPx = Math.max(1, Math.round((this.innerW * baseWidthFrac) / 2));
 
     // Rim Y in container-local coords (top of the topmost inner row).
+    // The crown is drawn into `dripGfx` (above the glass sprite) so it
+    // sits on top of the rim outline, matching the curtain below.
     const rimY = this.innerBottomLocalY - this.innerH * SCALE;
+    const g = this.dripGfx;
 
-    // Draw the mound row-by-row, narrowing toward the top. Use a quarter-sine
-    // shape so the dome looks rounded, not triangular.
+    // Mound profile per row — half-ellipse so the silhouette stays wide
+    // through most of the height and only narrows near the very top.
+    // `cos((π/2)·t)` was too conical at large overshoots — it pinched to
+    // a point. `sqrt(1 - t²)` bulges outward like a real foam dome.
+    const halfByOvershootRow = new Array(overshootSrcPx);
     for (let r = 0; r < overshootSrcPx; r++) {
-      const t = (r + 1) / overshootSrcPx; // 0..1 up the mound
-      const widthFrac = Math.cos((Math.PI * t) / 2); // 1→0 (rounded)
-      const halfPx = Math.max(0, Math.round(baseHalfPx * widthFrac));
+      const t = (r + 1) / overshootSrcPx;
+      const widthFrac = Math.sqrt(Math.max(0, 1 - t * t));
+      halfByOvershootRow[r] = Math.max(0, Math.round(baseHalfPx * widthFrac));
+    }
+
+    // Body of the mound — flat cream rows with a soft shadow stripe
+    // on the lower edge for depth.
+    for (let r = 0; r < overshootSrcPx; r++) {
+      const halfPx = halfByOvershootRow[r];
       if (halfPx <= 0) continue;
       const w = halfPx * 2 * SCALE;
       const x = -halfPx * SCALE;
       const y = rimY - (r + 1) * SCALE;
-      this.fillGfx.fillStyle(FOAM_COLOR, 1);
-      this.fillGfx.fillRect(x, y, w, SCALE);
-      // Soft shadow on the lower edge of the row for depth.
-      this.fillGfx.fillStyle(FOAM_SHADOW, 0.5);
-      this.fillGfx.fillRect(x, y + SCALE - 1, w, 1);
+      g.fillStyle(FOAM_COLOR, 1);
+      g.fillRect(x, y, w, SCALE);
+      g.fillStyle(FOAM_SHADOW, 0.5);
+      g.fillRect(x, y + SCALE - 1, w, 1);
     }
 
-    // A few bubble highlights scattered through the mound (stable per glass).
-    for (const b of this.crownBubbles) {
-      const r = Math.floor(b.rOff * overshootSrcPx);
-      const t = (r + 1) / overshootSrcPx;
-      const widthFrac = Math.cos((Math.PI * t) / 2);
-      const halfPx = Math.max(0, Math.round(baseHalfPx * widthFrac));
+    // Top highlight band — brighten the upper third of the mound so the
+    // crown reads as catching the light.
+    const brightStart = Math.floor(overshootSrcPx * 0.6);
+    for (let r = brightStart; r < overshootSrcPx; r++) {
+      const halfPx = halfByOvershootRow[r];
       if (halfPx <= 0) continue;
-      const col = Math.floor(b.cOff * (halfPx * 2));
-      const x = -halfPx * SCALE + col * SCALE;
+      const w = halfPx * 2 * SCALE;
+      const x = -halfPx * SCALE;
       const y = rimY - (r + 1) * SCALE;
-      this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 0.85);
-      this.fillGfx.fillRect(x, y, Math.max(1, SCALE - 1), Math.max(1, SCALE - 1));
+      g.fillStyle(FOAM_HIGHLIGHT, 0.3);
+      g.fillRect(x, y, w, SCALE);
+    }
+
+    // Bubble blobs throughout the mound — bigger ringed ones + small dots.
+    // drawFoamBubble writes to fillGfx; for the crown we want them on top
+    // of the glass too, so call it after temporarily swapping the target.
+    const fillGfx = this.fillGfx;
+    this.fillGfx = g;
+    try {
+      for (const b of this.crownBubbles) {
+        const r = Math.floor(b.rOff * overshootSrcPx);
+        const halfPx = halfByOvershootRow[r];
+        if (halfPx <= 0) continue;
+        const innerWPx = halfPx * 2;
+        const col = Math.max(0, Math.min(innerWPx - 1, Math.floor(b.cOff * innerWPx)));
+        const x = -halfPx * SCALE + col * SCALE;
+        const y = rimY - (r + 1) * SCALE;
+        const radius = innerWPx >= 4 ? b.radius : 1;
+        this.drawFoamBubble(x, y, radius, 'light');
+      }
+    } finally {
+      this.fillGfx = fillGfx;
     }
   }
 
@@ -290,15 +388,39 @@ export default class Glass extends Phaser.GameObjects.Container {
 
   drawRow(rowIdx, widthFrac, heightFrac, color, edge) {
     const halfPx = Math.max(1, Math.round((this.innerW * widthFrac) / 2));
-    const w = halfPx * 2 * SCALE;
+    const innerWidth = halfPx * 2;
+    const w = innerWidth * SCALE;
     const h = SCALE * heightFrac;
     const x = -halfPx * SCALE;
     const y = this.innerBottomLocalY - rowIdx * SCALE - h;
+    // Base fill
     this.fillGfx.fillStyle(color, 1);
     this.fillGfx.fillRect(x, y, w, h);
+    // Side edges (slight darkening at the walls).
     this.fillGfx.fillStyle(edge, 0.6);
     this.fillGfx.fillRect(x, y, 1, h);
     this.fillGfx.fillRect(x + w - 1, y, 1, h);
+    // Wide highlight + shadow bands — simulates a single light source
+    // hitting the glass from the upper-left. Liquid uses a brighter
+    // (lighter) tint and a stronger shadow; foam keeps it subtle.
+    const isFoam = color === FOAM_COLOR;
+    if (innerWidth >= 6) {
+      const highlightCol = Math.floor(innerWidth * 0.22);
+      const highlightW = Math.max(2, Math.floor(innerWidth * 0.12));
+      const shadowCol = Math.floor(innerWidth * 0.72);
+      const shadowW = Math.max(2, Math.floor(innerWidth * 0.14));
+      if (isFoam) {
+        this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 0.28);
+        this.fillGfx.fillRect(x + highlightCol * SCALE, y, highlightW * SCALE, h);
+        this.fillGfx.fillStyle(edge, 0.28);
+        this.fillGfx.fillRect(x + shadowCol * SCALE, y, shadowW * SCALE, h);
+      } else {
+        this.fillGfx.fillStyle(0xffffff, 0.18);
+        this.fillGfx.fillRect(x + highlightCol * SCALE, y, highlightW * SCALE, h);
+        this.fillGfx.fillStyle(edge, 0.45);
+        this.fillGfx.fillRect(x + shadowCol * SCALE, y, shadowW * SCALE, h);
+      }
+    }
   }
 
   /**
@@ -349,68 +471,321 @@ export default class Glass extends Phaser.GameObjects.Container {
       crownPartial = 1;
     }
 
-    // --- Texture: wavy top edge ---
-    // Stipple a few extra/missing pixels along the crown's top to suggest
-    // irregular foam. Limited to within the row width.
+    // --- Vertical gradient inside the foam body ---
+    // Top rows brighten toward pure white; bottom rows darken toward
+    // cream/tan. Reads as a real foam layer with light catching the crown.
+    const foamTopFracG = endRowFrac;
+    const foamBottomFracG = Math.max(startRowFrac, 0);
+    const foamRowsG = Math.max(0, foamTopFracG - foamBottomFracG);
+    if (foamRowsG > 0.5) {
+      const topY = this.innerBottomLocalY - foamTopFracG * SCALE;
+      const botY = this.innerBottomLocalY - foamBottomFracG * SCALE;
+      const heightDisplay = botY - topY;
+      // Brightening band — top quarter, white at 0.35 alpha fading down.
+      const brightH = Math.max(SCALE, Math.round(heightDisplay * 0.28));
+      // Use the topmost foam row's profile to clip the band width-wise.
+      const clipRow = Math.min(this.innerH - 1, Math.max(0, Math.floor(foamTopFracG) - 1));
+      const clipWidthFrac = this.volPerRow[clipRow] ?? 1;
+      const clipHalfPx = Math.max(1, Math.round((this.innerW * clipWidthFrac) / 2));
+      this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 0.32);
+      this.fillGfx.fillRect(-clipHalfPx * SCALE, topY, clipHalfPx * 2 * SCALE, brightH);
+      // Darkening band — bottom quarter, foam-shadow tint.
+      const darkH = Math.max(SCALE, Math.round(heightDisplay * 0.25));
+      const darkRow = Math.min(this.innerH - 1, Math.max(0, Math.floor(foamBottomFracG)));
+      const darkWidthFrac = this.volPerRow[darkRow] ?? 1;
+      const darkHalfPx = Math.max(1, Math.round((this.innerW * darkWidthFrac) / 2));
+      this.fillGfx.fillStyle(FOAM_SHADOW, 0.45);
+      this.fillGfx.fillRect(-darkHalfPx * SCALE, botY - darkH, darkHalfPx * 2 * SCALE, darkH);
+    }
+
+    // --- Lumpy top edge ---
+    // Each lump is a cluster of foam pixels that pokes up above the crown
+    // row, with rounded shoulders so it reads as a bubble cluster rather
+    // than a square block.
     const crownWidthFrac =
       crownRowIdx >= 0 && crownRowIdx < this.innerH ? this.volPerRow[crownRowIdx] : 0;
     if (crownWidthFrac > 0) {
       const crownHalfPx = Math.max(1, Math.round((this.innerW * crownWidthFrac) / 2));
-      const crownW = crownHalfPx * 2; // in source pixels
+      const crownW = crownHalfPx * 2;
       const crownXLeft = -crownHalfPx * SCALE;
-      // Y of the very top of the crown:
       const crownTopY =
         this.innerBottomLocalY -
         crownRowIdx * SCALE -
         crownPartial * SCALE;
-      // Add light highlights above the crown for "peaks" and dark notches below for "valleys".
-      for (let c = 0; c < crownW; c++) {
-        const wave = this.foamWave[c % this.foamWave.length];
-        if (wave > 0) {
-          // Peak: extend foam above the crown by `wave` source pixels (each = SCALE display px).
-          this.fillGfx.fillStyle(FOAM_COLOR, 1);
-          this.fillGfx.fillRect(
-            crownXLeft + c * SCALE,
-            crownTopY - wave * SCALE,
-            SCALE,
-            wave * SCALE,
-          );
-          // Highlight on the very top
-          this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 0.8);
-          this.fillGfx.fillRect(
-            crownXLeft + c * SCALE,
-            crownTopY - wave * SCALE,
-            SCALE,
-            1,
-          );
-        }
-      }
+      this.drawFoamLumps(crownXLeft, crownTopY, crownW);
     }
 
-    // --- Texture: bubble dots inside the foam body ---
+    // --- Bubble blobs inside the foam body ---
     const foamTopFrac = endRowFrac;
     const foamBottomFrac = Math.max(startRowFrac, 0);
     const foamThicknessRows = Math.max(0, foamTopFrac - foamBottomFrac);
     if (foamThicknessRows > 0.5) {
       for (const b of this.bubbles) {
-        // Place the bubble within the foam band.
         const rowFrac = foamBottomFrac + b.rOff * foamThicknessRows;
         const rowIdxBubble = Math.floor(rowFrac);
         if (rowIdxBubble < 0 || rowIdxBubble >= this.innerH) continue;
         const widthFrac = this.volPerRow[rowIdxBubble];
         if (widthFrac <= 0) continue;
         const halfPx = Math.max(1, Math.round((this.innerW * widthFrac) / 2));
-        const col = Math.floor(b.cOff * (halfPx * 2));
+        // Inset a hair so bubbles don't hug the wall.
+        const innerW = halfPx * 2;
+        const col = 1 + Math.floor(b.cOff * Math.max(1, innerW - 2));
         const x = -halfPx * SCALE + col * SCALE;
         const y =
           this.innerBottomLocalY - rowIdxBubble * SCALE - (rowFrac - rowIdxBubble) * SCALE;
-        if (b.kind === 'dark') {
-          this.fillGfx.fillStyle(FOAM_BUBBLE_DARK, 0.7);
-          this.fillGfx.fillRect(x, y, SCALE, SCALE);
-        } else {
-          this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 0.9);
-          this.fillGfx.fillRect(x, y, Math.max(1, SCALE - 1), Math.max(1, SCALE - 1));
+        this.drawFoamBubble(x, y, b.radius, b.kind);
+      }
+    }
+  }
+
+  /**
+   * Paint the lumpy top edge of the foam — a row of bubble clusters
+   * that pokes up above the crown. Each lump is a rounded mound (wider
+   * at the base, narrower on top) with a bright crown pixel.
+   */
+  drawFoamLumps(crownXLeft, crownTopY, crownW) {
+    for (const lump of this.foamLumps) {
+      const lumpW = lump.width;
+      const lumpH = lump.height;
+      const cxLump = (lump.col + (lumpW - 1) / 2);
+      // Half-width of the lump's base; we narrow each row toward the top
+      // using a quarter-cosine profile so the silhouette is a rounded dome
+      // (no pointy tip, no triangular taper).
+      const baseHalf = (lumpW - 1) / 2;
+      for (let r = 0; r < lumpH; r++) {
+        // t goes 0 (base) → 1 (top of lump). cos((π/2)·t) curves 1 → 0
+        // smoothly, with a fast drop near the top.
+        const t = r / Math.max(1, lumpH);
+        const halfThisRow = Math.max(0, baseHalf * Math.cos((Math.PI / 2) * t));
+        // Snap to integer columns, but bias toward keeping the top row 1+ px wide.
+        const halfRounded = r === lumpH - 1
+          ? Math.max(0, Math.round(halfThisRow - 0.1))
+          : Math.round(halfThisRow);
+        const left = Math.floor(cxLump - halfRounded);
+        const right = Math.ceil(cxLump + halfRounded);
+        if (right < left) continue;
+        for (let c = left; c <= right; c++) {
+          if (c < 0 || c >= crownW) continue;
+          const px = crownXLeft + c * SCALE;
+          const py = crownTopY - (r + 1) * SCALE;
+          this.fillGfx.fillStyle(FOAM_COLOR, 1);
+          this.fillGfx.fillRect(px, py, SCALE, SCALE);
         }
+        // Bright sparkle on the upper-left of the lump (inside the
+        // silhouette, NOT poking above it — that would create a spire).
+        if (r === lumpH - 1 && right > left) {
+          const sparkleC = Math.max(left, Math.floor(cxLump) - 1);
+          if (sparkleC >= 0 && sparkleC < crownW) {
+            this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 1);
+            this.fillGfx.fillRect(
+              crownXLeft + sparkleC * SCALE,
+              crownTopY - lumpH * SCALE,
+              SCALE,
+              SCALE,
+            );
+          }
+        }
+      }
+      // Soft cream shadow on the lower-right shoulder of each lump for depth.
+      const shoulderC = lump.col + lumpW - 1;
+      if (shoulderC < crownW && shoulderC >= 0) {
+        this.fillGfx.fillStyle(FOAM_SHADOW, 0.55);
+        this.fillGfx.fillRect(
+          crownXLeft + shoulderC * SCALE,
+          crownTopY - SCALE,
+          SCALE,
+          SCALE,
+        );
+      }
+    }
+  }
+
+  /**
+   * Draw foam runs flowing down the outside of the glass. Cartoony
+   * fat drips with a dark outline (so they pop over the glass texture)
+   * and a big teardrop bead at the tip. Drips appear as soon as foam
+   * crosses the rim and lengthen with `overshootRatio` (0..1).
+   *
+   * Renders into `dripGfx` which sits above the glass sprite, so the
+   * runs visibly cling to the outside of the cup rather than getting
+   * hidden by the outline.
+   */
+  drawFoamCurtain(overshootRatio) {
+    const g = this.dripGfx;
+    // Anchor the curtain so it OVERLAPS the rim outline (3 rows of dark
+    // outline + bright lip above the inner liquid area). Without this
+    // overlap the rim's blue-grey edge is still visible above the foam,
+    // which looks like the curtain is hanging inside the glass.
+    const topHalfFrac = this.volPerRow[this.innerH - 1];
+    const topHalfPx = Math.max(1, Math.round((this.innerW * topHalfFrac) / 2));
+    // The rim outline extends from `innerTop - 3` to `innerTop - 1` above
+    // the inner area, plus rim "ears" 1 px wider on each side. We start
+    // the curtain ABOVE the rim's top so the foam visibly covers the lip.
+    const rimOverlapSrcPx = 4; // 3 rim rows + 1 px breathing room above
+    const innerTopY = this.innerBottomLocalY - this.innerH * SCALE;
+    const rimY = innerTopY - rimOverlapSrcPx * SCALE;
+    const maxAvailableDripPx = Math.max(4, Math.floor(this.innerH * 1.0));
+
+    const outline = 0xc9b88a; // dark cream — readable over both glass and bar
+
+    const colCount = this.foamCurtain.length;
+    // Start two pixels past the left rim ear, end two past the right.
+    // Rim ears sit at ±(topHalfPx + 1), so leftStart = -(topHalfPx + 2).
+    const leftStartSrc = -topHalfPx - 2;
+
+    // ---- 1) Compute per-column raw length ----
+    const raw = new Array(colCount);
+    for (let i = 0; i < colCount; i++) {
+      const col = this.foamCurtain[i];
+      const effRatio = (overshootRatio - col.startThreshold) /
+        Math.max(0.01, 1 - col.startThreshold);
+      if (effRatio <= 0) {
+        raw[i] = 0;
+        continue;
+      }
+      const clamped = Math.min(1, effRatio);
+      raw[i] = Math.round(maxAvailableDripPx * col.maxLenFrac * clamped);
+    }
+
+    // ---- 2) Smooth lengths with a 3-tap blur, twice ----
+    // Replaces saw-tooth tips with rounded dome-shaped bulges.
+    const smooth = (src) => {
+      const out = new Array(src.length);
+      for (let i = 0; i < src.length; i++) {
+        const a = src[Math.max(0, i - 1)];
+        const b = src[i];
+        const c = src[Math.min(src.length - 1, i + 1)];
+        out[i] = (a + b + b + c) / 4; // weighted center, keeps overall shape
+      }
+      return out;
+    };
+    let lenF = smooth(smooth(raw));
+    // ---- 3) Round each "bulge" end by 1px so the corners aren't sharp ----
+    // For each column, look at neighbors: if both are MUCH shorter, snip
+    // this column's tip by 1 src px (rounds the apex of a peak).
+    const lens = new Array(colCount);
+    for (let i = 0; i < colCount; i++) {
+      const v = lenF[i];
+      const left = i > 0 ? lenF[i - 1] : v;
+      const right = i < colCount - 1 ? lenF[i + 1] : v;
+      // Apex column: taller than BOTH neighbors → trim 1 px off the tip.
+      let l = Math.round(v);
+      if (v > left + 0.5 && v > right + 0.5) l = Math.max(0, l - 1);
+      // Shoulder column adjacent to a tall apex: also trim 1 px to round
+      // the shoulder.
+      else if (v > 1 && (left > v + 1.5 || right > v + 1.5)) l = Math.max(0, l - 1);
+      lens[i] = l;
+    }
+
+    // ---- 4) Top outline strip just below the rim ----
+    g.fillStyle(outline, 1);
+    g.fillRect(leftStartSrc * SCALE, rimY - 1, colCount * SCALE, 1);
+
+    // ---- 5) Per-column foam strips ----
+    for (let i = 0; i < colCount; i++) {
+      const lenPx = lens[i];
+      if (lenPx <= 0) continue;
+      const col = this.foamCurtain[i];
+      const x = (leftStartSrc + i) * SCALE;
+      const stripHeight = lenPx * SCALE;
+
+      // Cream foam fill
+      g.fillStyle(FOAM_COLOR, 1);
+      g.fillRect(x, rimY, SCALE, stripHeight);
+
+      // Per-column highlight/shadow — lit from upper-left.
+      const colFrac = i / Math.max(1, colCount - 1);
+      if (colFrac < 0.35) {
+        g.fillStyle(FOAM_HIGHLIGHT, 0.55);
+        g.fillRect(x, rimY, SCALE, stripHeight);
+      } else if (colFrac > 0.7) {
+        g.fillStyle(FOAM_SHADOW, 0.45);
+        g.fillRect(x, rimY, SCALE, stripHeight);
+      }
+
+      // Bottom-of-column outline pixel (the rounded "drip cap").
+      g.fillStyle(outline, 1);
+      g.fillRect(x, rimY + stripHeight, SCALE, 1);
+
+      // Heavy beads dangling from the longest columns.
+      if (col.heavy && lenPx >= 6 && lenPx >= maxAvailableDripPx * 0.35) {
+        this.drawDripBead(g, x, rimY + stripHeight, outline);
+      }
+    }
+
+    // ---- 6) Step outlines between adjacent columns with different lengths ----
+    // These give the curtain a clean silhouette without jagged edges since
+    // the smoothing already minimized large jumps.
+    for (let i = 0; i < colCount - 1; i++) {
+      const aLen = lens[i];
+      const bLen = lens[i + 1];
+      const diff = aLen - bLen;
+      if (Math.abs(diff) >= 1) {
+        g.fillStyle(outline, 1);
+        const stepHeight = Math.abs(diff) * SCALE;
+        const stepX = (leftStartSrc + i + 1) * SCALE;
+        const stepTop = diff > 0
+          ? rimY + bLen * SCALE
+          : rimY + aLen * SCALE;
+        g.fillRect(stepX - 1, stepTop, 1, stepHeight);
+      }
+    }
+  }
+
+  /**
+   * Big cartoony 4-row teardrop bead hanging off the bottom of a heavy
+   * drip column. Drawn with a dark outline and a sparkle highlight.
+   */
+  drawDripBead(g, columnX, beadTopY, outline) {
+    const halfBead = SCALE; // 1 src px each side of center
+    const beadCenterX = columnX + Math.floor(SCALE / 2);
+    // Outline
+    g.fillStyle(outline, 1);
+    g.fillRect(beadCenterX - halfBead, beadTopY - 1, halfBead * 2, 1);
+    g.fillRect(beadCenterX - halfBead * 2, beadTopY, 1, SCALE);
+    g.fillRect(beadCenterX + halfBead * 2 - 1, beadTopY, 1, SCALE);
+    g.fillRect(beadCenterX - halfBead * 2 - 1, beadTopY + SCALE, 1, SCALE);
+    g.fillRect(beadCenterX + halfBead * 2, beadTopY + SCALE, 1, SCALE);
+    g.fillRect(beadCenterX - halfBead * 2, beadTopY + SCALE * 2, 1, SCALE);
+    g.fillRect(beadCenterX + halfBead * 2 - 1, beadTopY + SCALE * 2, 1, SCALE);
+    g.fillRect(beadCenterX - halfBead, beadTopY + SCALE * 3, halfBead * 2, 1);
+    // Cream foam interior
+    g.fillStyle(FOAM_COLOR, 1);
+    g.fillRect(beadCenterX - halfBead, beadTopY, halfBead * 2, SCALE);
+    g.fillRect(beadCenterX - halfBead * 2, beadTopY + SCALE, halfBead * 4, SCALE);
+    g.fillRect(beadCenterX - halfBead * 2, beadTopY + SCALE * 2, halfBead * 4, SCALE);
+    g.fillRect(beadCenterX - halfBead, beadTopY + SCALE * 3, halfBead * 2, SCALE);
+    // Highlight sparkle on the upper-left
+    g.fillStyle(FOAM_HIGHLIGHT, 1);
+    g.fillRect(beadCenterX - halfBead, beadTopY + SCALE, SCALE, SCALE);
+  }
+
+  /**
+   * Draw a bubble blob at (x, y). Radius 1 = single dot; radius 2 =
+   * a 2×2 cluster with a darker outline pixel and a bright center pixel.
+   * `kind` is 'light' (bright bubble) or 'dark' (faint shadow bubble).
+   */
+  drawFoamBubble(x, y, radius, kind) {
+    const isDark = kind === 'dark';
+    if (radius >= 2) {
+      // 2×2 ringed bubble: 3 outline pixels + 1 bright highlight.
+      const ringColor = isDark ? FOAM_BUBBLE_DARK : FOAM_SHADOW;
+      const ringAlpha = isDark ? 0.75 : 0.85;
+      const coreColor = isDark ? FOAM_SHADOW : FOAM_HIGHLIGHT;
+      const coreAlpha = isDark ? 0.9 : 1;
+      this.fillGfx.fillStyle(ringColor, ringAlpha);
+      this.fillGfx.fillRect(x, y, SCALE * 2, SCALE);
+      this.fillGfx.fillRect(x, y + SCALE, SCALE, SCALE);
+      this.fillGfx.fillStyle(coreColor, coreAlpha);
+      this.fillGfx.fillRect(x + SCALE, y + SCALE, SCALE, SCALE);
+    } else {
+      // Single dot.
+      if (isDark) {
+        this.fillGfx.fillStyle(FOAM_BUBBLE_DARK, 0.75);
+        this.fillGfx.fillRect(x, y, SCALE, SCALE);
+      } else {
+        this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 1);
+        this.fillGfx.fillRect(x, y, Math.max(1, SCALE - 1), Math.max(1, SCALE - 1));
       }
     }
   }
@@ -423,7 +798,8 @@ export default class Glass extends Phaser.GameObjects.Container {
   drawRowSlice(rowIdx, widthFrac, fromFrac, toFrac, color, edge) {
     if (toFrac <= fromFrac) return;
     const halfPx = Math.max(1, Math.round((this.innerW * widthFrac) / 2));
-    const w = halfPx * 2 * SCALE;
+    const innerWidth = halfPx * 2;
+    const w = innerWidth * SCALE;
     const x = -halfPx * SCALE;
     const yBottom = this.innerBottomLocalY - rowIdx * SCALE; // bottom of this row
     const yTop = yBottom - toFrac * SCALE;
@@ -433,6 +809,24 @@ export default class Glass extends Phaser.GameObjects.Container {
     this.fillGfx.fillStyle(edge, 0.6);
     this.fillGfx.fillRect(x, yTop, 1, h);
     this.fillGfx.fillRect(x + w - 1, yTop, 1, h);
+    const isFoam = color === FOAM_COLOR;
+    if (innerWidth >= 6) {
+      const highlightCol = Math.floor(innerWidth * 0.22);
+      const highlightW = Math.max(2, Math.floor(innerWidth * 0.12));
+      const shadowCol = Math.floor(innerWidth * 0.72);
+      const shadowW = Math.max(2, Math.floor(innerWidth * 0.14));
+      if (isFoam) {
+        this.fillGfx.fillStyle(FOAM_HIGHLIGHT, 0.28);
+        this.fillGfx.fillRect(x + highlightCol * SCALE, yTop, highlightW * SCALE, h);
+        this.fillGfx.fillStyle(edge, 0.28);
+        this.fillGfx.fillRect(x + shadowCol * SCALE, yTop, shadowW * SCALE, h);
+      } else {
+        this.fillGfx.fillStyle(0xffffff, 0.18);
+        this.fillGfx.fillRect(x + highlightCol * SCALE, yTop, highlightW * SCALE, h);
+        this.fillGfx.fillStyle(edge, 0.45);
+        this.fillGfx.fillRect(x + shadowCol * SCALE, yTop, shadowW * SCALE, h);
+      }
+    }
   }
 
   /**
@@ -492,7 +886,7 @@ export default class Glass extends Phaser.GameObjects.Container {
       onComplete: () => {
         this.scene.tweens.add({
           targets: this,
-          x: 900, // off the right edge of the 800-wide canvas
+          x: this.scene.scale.width + 100, // off the right edge of the canvas
           alpha: 0,
           duration: slideDuration,
           ease: 'Cubic.in',

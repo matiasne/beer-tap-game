@@ -27,34 +27,40 @@ export default class ScoreboardScene extends Phaser.Scene {
   }
 
   create() {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const cx = W / 2;
+
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1612, 1);
-    bg.fillRect(0, 0, 800, 600);
+    bg.fillRect(0, 0, W, H);
 
     // Header strip (matches the menu)
+    const stripY = Math.round(H * 0.08);
     bg.fillStyle(0x3a2a1a, 1);
-    bg.fillRect(0, 60, 800, 50);
+    bg.fillRect(0, stripY, W, 80);
     bg.fillStyle(0x4a3724, 1);
-    bg.fillRect(0, 62, 800, 4);
+    bg.fillRect(0, stripY + 2, W, 4);
     bg.fillStyle(0x2a1f14, 1);
-    bg.fillRect(0, 106, 800, 4);
+    bg.fillRect(0, stripY + 74, W, 4);
 
-    this.add.text(400, 85, 'MEJORES PUNTAJES', {
+    this.add.text(cx, stripY + 40, 'MEJORES PUNTAJES', {
       fontFamily: FONT_FAMILY,
-      fontSize: '32px',
+      fontSize: '56px',
       color: '#ffd93d',
       stroke: '#1a120a',
-      strokeThickness: 5,
+      strokeThickness: 7,
     }).setOrigin(0.5, 0.5);
 
-    // Column headers
-    const headerY = 145;
+    // Column headers — laid out as fractions of the canvas width so they
+    // breathe on the wider screen.
+    const headerY = Math.round(H * 0.22);
     const cols = {
-      rank: 110,
-      name: 200,
-      score: 460,
-      level: 580,
-      date: 720,
+      rank: Math.round(W * 0.14),
+      name: Math.round(W * 0.25),
+      score: Math.round(W * 0.58),
+      level: Math.round(W * 0.73),
+      date: Math.round(W * 0.9),
     };
     this.drawHeaderCell('#', cols.rank, headerY, 0.5);
     this.drawHeaderCell('NOMBRE', cols.name, headerY, 0);
@@ -63,19 +69,21 @@ export default class ScoreboardScene extends Phaser.Scene {
     this.drawHeaderCell('FECHA', cols.date, headerY, 1);
 
     // Divider
+    const divLeft = Math.round(W * 0.1);
+    const divRight = Math.round(W * 0.9);
     const div = this.add.graphics();
     div.fillStyle(0x4a3724, 1);
-    div.fillRect(80, 165, 640, 2);
+    div.fillRect(divLeft, headerY + 26, divRight - divLeft, 3);
 
     // Rows
     const entries = getAll();
-    const rowStartY = 185;
-    const rowH = 30;
+    const rowStartY = Math.round(H * 0.3);
+    const rowH = 50;
 
     if (entries.length === 0) {
-      this.add.text(400, 330, 'Todavía no hay puntajes — ¡sé el primero!', {
+      this.add.text(cx, H * 0.55, 'Todavía no hay puntajes — ¡sé el primero!', {
         fontFamily: FONT_FAMILY,
-        fontSize: '20px',
+        fontSize: '32px',
         color: '#8a7a55',
       }).setOrigin(0.5, 0.5);
     } else {
@@ -87,9 +95,9 @@ export default class ScoreboardScene extends Phaser.Scene {
         if (isHi) {
           const glow = this.add.graphics();
           glow.fillStyle(0xffd93d, 0.12);
-          glow.fillRoundedRect(80, y - rowH / 2, 640, rowH, 4);
-          glow.lineStyle(1, 0xffd93d, 0.6);
-          glow.strokeRoundedRect(80, y - rowH / 2, 640, rowH, 4);
+          glow.fillRoundedRect(divLeft, y - rowH / 2, divRight - divLeft, rowH, 6);
+          glow.lineStyle(2, 0xffd93d, 0.6);
+          glow.strokeRoundedRect(divLeft, y - rowH / 2, divRight - divLeft, rowH, 6);
           // Subtle pulse on the glow
           this.tweens.add({
             targets: glow,
@@ -113,12 +121,12 @@ export default class ScoreboardScene extends Phaser.Scene {
     const promptText = this.attract
       ? 'apretá [1] [2] [3] o [4] para jugar'
       : 'apretá [1] [2] [3] o [4] para continuar';
-    this.prompt = this.add.text(400, 555, promptText.toUpperCase(), {
+    this.prompt = this.add.text(cx, H - 60, promptText.toUpperCase(), {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '30px',
       color: '#fff4d6',
       stroke: '#1a120a',
-      strokeThickness: 3,
+      strokeThickness: 5,
     }).setOrigin(0.5, 0.5);
     this.tweens.add({
       targets: this.prompt,
@@ -135,7 +143,7 @@ export default class ScoreboardScene extends Phaser.Scene {
   drawHeaderCell(text, x, y, originX) {
     this.add.text(x, y, text, {
       fontFamily: FONT_FAMILY,
-      fontSize: '14px',
+      fontSize: '22px',
       color: '#8a7a55',
     }).setOrigin(originX, 0.5);
   }
@@ -143,7 +151,7 @@ export default class ScoreboardScene extends Phaser.Scene {
   drawRowCell(text, x, y, originX, color) {
     this.add.text(x, y, text, {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '28px',
       color,
     }).setOrigin(originX, 0.5);
   }

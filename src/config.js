@@ -34,9 +34,10 @@ export const GAME_CONFIG = {
 
   // Visual
   spriteScale: 4,
-  tapY: 250,
-  glassY: 440,
-  tapXs: [150, 325, 500, 675],
+  // World is 1920×1080. The 4 taps are spread evenly across the wider canvas.
+  tapY: 450,
+  glassY: 780,
+  tapXs: [320, 760, 1200, 1640],
 
   // Glass cycle timings (ms)
   glassReleaseDuration: 450,
@@ -51,7 +52,7 @@ export const GAME_CONFIG = {
     queueScale: 2, // sprite scale for clients
     queueScaleFalloff: 0.85, // each further-back client shrinks by this factor
     queueAlphaFalloff: 0.92, // and dims
-    frontBottomY: 140, // y-coord of the front client's feet/torso bottom
+    frontBottomY: 252, // y-coord of the front client's feet/torso bottom
     tipMin: 0,
     tipMax: 25,
     patienceMs: 45000, // 45s from spawn to angry-leave

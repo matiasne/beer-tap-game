@@ -22,40 +22,46 @@ export default class LevelResultScene extends Phaser.Scene {
   }
 
   create() {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const cx = W / 2;
+
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1612, 1);
-    bg.fillRect(0, 0, 800, 600);
+    bg.fillRect(0, 0, W, H);
 
     const headline = this.passed ? 'NIVEL SUPERADO' : 'FIN DEL JUEGO';
     const headlineColor = this.passed ? '#6acc4a' : '#ff4a2a';
 
-    this.add.text(400, 150, headline, {
+    this.add.text(cx, Math.round(H * 0.18), headline, {
       fontFamily: FONT_FAMILY,
-      fontSize: '48px',
+      fontSize: '88px',
       color: headlineColor,
       stroke: '#1a120a',
-      strokeThickness: 6,
+      strokeThickness: 8,
     }).setOrigin(0.5, 0.5);
 
-    this.add.text(400, 200, `Nivel ${this.level}`, {
+    this.add.text(cx, Math.round(H * 0.28), `Nivel ${this.level}`, {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '28px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
 
     // Stat block
     const labelColor = '#8a7a55';
     const valueColor = '#e8d9a8';
-    const startY = 280;
-    const lineH = 36;
-    this.addStatRow(220, startY, 'TU PUNTAJE', `$${Math.max(0, this.score)}`, labelColor, valueColor);
-    this.addStatRow(220, startY + lineH, 'OBJETIVO', `$${this.target}`, labelColor, valueColor);
+    const startY = Math.round(H * 0.45);
+    const lineH = 60;
+    const labelX = Math.round(W * 0.32);
+    const valueX = Math.round(W * 0.68);
+    this.addStatRow(labelX, startY, valueX, 'TU PUNTAJE', `$${Math.max(0, this.score)}`, labelColor, valueColor);
+    this.addStatRow(labelX, startY + lineH, valueX, 'OBJETIVO', `$${this.target}`, labelColor, valueColor);
     if (this.passed) {
       const surplus = this.score - this.target;
-      this.addStatRow(220, startY + lineH * 2, 'TE SOBRARON', `$${surplus}`, labelColor, '#ffd93d');
+      this.addStatRow(labelX, startY + lineH * 2, valueX, 'TE SOBRARON', `$${surplus}`, labelColor, '#ffd93d');
     } else {
       const deficit = this.target - this.score;
-      this.addStatRow(220, startY + lineH * 2, 'TE FALTARON', `$${deficit}`, labelColor, '#ff7a4a');
+      this.addStatRow(labelX, startY + lineH * 2, valueX, 'TE FALTARON', `$${deficit}`, labelColor, '#ff7a4a');
     }
 
     // Tap-keys prompt — pressing any tap key continues / returns to menu.
@@ -63,12 +69,12 @@ export default class LevelResultScene extends Phaser.Scene {
       ? `APRETÁ [1] [2] [3] o [4] PARA EL NIVEL ${this.level + 1}`
       : 'APRETÁ [1] [2] [3] o [4] PARA EL MENÚ';
     const promptColor = this.passed ? '#cfe8a8' : '#fff4d6';
-    const prompt = this.add.text(400, 480, promptLabel, {
+    const prompt = this.add.text(cx, Math.round(H * 0.84), promptLabel, {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '30px',
       color: promptColor,
       stroke: '#1a120a',
-      strokeThickness: 4,
+      strokeThickness: 5,
     });
     prompt.setOrigin(0.5, 0.5);
     this.tweens.add({
@@ -83,18 +89,18 @@ export default class LevelResultScene extends Phaser.Scene {
     onAnyTapKey(this, () => this.advance());
   }
 
-  addStatRow(x, y, label, value, labelColor, valueColor) {
-    this.add.text(x, y, label, {
+  addStatRow(labelX, y, valueX, label, value, labelColor, valueColor) {
+    this.add.text(labelX, y, label, {
       fontFamily: FONT_FAMILY,
-      fontSize: '16px',
+      fontSize: '26px',
       color: labelColor,
     }).setOrigin(0, 0.5);
-    this.add.text(580, y, value, {
+    this.add.text(valueX, y, value, {
       fontFamily: FONT_FAMILY,
-      fontSize: '20px',
+      fontSize: '32px',
       color: valueColor,
       stroke: '#1a120a',
-      strokeThickness: 3,
+      strokeThickness: 4,
     }).setOrigin(1, 0.5);
   }
 

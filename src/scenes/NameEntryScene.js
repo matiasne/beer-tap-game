@@ -26,65 +26,70 @@ export default class NameEntryScene extends Phaser.Scene {
   }
 
   create() {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const cx = W / 2;
+
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1612, 1);
-    bg.fillRect(0, 0, 800, 600);
+    bg.fillRect(0, 0, W, H);
 
     // Headline
-    this.add.text(400, 90, '¡NUEVO RÉCORD!', {
+    this.add.text(cx, Math.round(H * 0.12), '¡NUEVO RÉCORD!', {
       fontFamily: FONT_FAMILY,
-      fontSize: '40px',
+      fontSize: '72px',
       color: '#ffd93d',
       stroke: '#1a120a',
-      strokeThickness: 6,
+      strokeThickness: 8,
     }).setOrigin(0.5, 0.5);
 
-    this.add.text(400, 140, `Puntaje: $${this.score}  ·  Nivel ${this.level}`, {
+    this.add.text(cx, Math.round(H * 0.21), `Puntaje: $${this.score}  ·  Nivel ${this.level}`, {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '28px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
 
     // Instructions
-    this.add.text(400, 180, 'TOCÁ 1 / 2 / 3 / 4 PARA CAMBIAR CADA LETRA', {
+    this.add.text(cx, Math.round(H * 0.28), 'TOCÁ 1 / 2 / 3 / 4 PARA CAMBIAR CADA LETRA', {
       fontFamily: FONT_FAMILY,
-      fontSize: '14px',
+      fontSize: '22px',
       color: '#8a7a55',
     }).setOrigin(0.5, 0.5);
 
     // Slot boxes
-    const slotW = 80;
-    const slotGap = 16;
+    const slotW = 140;
+    const slotH = 140;
+    const slotGap = 28;
     const totalW = SLOT_COUNT * slotW + (SLOT_COUNT - 1) * slotGap;
-    const startX = 400 - totalW / 2;
-    const slotY = 300;
+    const startX = cx - totalW / 2;
+    const slotY = Math.round(H * 0.5);
 
     this.slotBoxes = [];
     this.slotTexts = [];
     this.slotKeyLabels = [];
 
     for (let i = 0; i < SLOT_COUNT; i++) {
-      const cx = startX + i * (slotW + slotGap) + slotW / 2;
+      const sx = startX + i * (slotW + slotGap) + slotW / 2;
 
       // Background box
       const box = this.add.graphics();
-      this.drawSlotBox(box, cx, slotY, slotW, 80, false);
+      this.drawSlotBox(box, sx, slotY, slotW, slotH, false);
       this.slotBoxes.push(box);
 
       // Letter
-      const letter = this.add.text(cx, slotY, this.slots[i], {
+      const letter = this.add.text(sx, slotY, this.slots[i], {
         fontFamily: FONT_FAMILY,
-        fontSize: '54px',
+        fontSize: '96px',
         color: '#fff4d6',
         stroke: '#1a120a',
-        strokeThickness: 5,
+        strokeThickness: 7,
       }).setOrigin(0.5, 0.5);
       this.slotTexts.push(letter);
 
       // "[N]" key hint below each slot
-      const hint = this.add.text(cx, slotY + 60, `[${i + 1}]`, {
+      const hint = this.add.text(sx, slotY + slotH / 2 + 28, `[${i + 1}]`, {
         fontFamily: FONT_FAMILY,
-        fontSize: '16px',
+        fontSize: '24px',
         color: '#a89668',
       }).setOrigin(0.5, 0.5);
       this.slotKeyLabels.push(hint);
@@ -92,32 +97,33 @@ export default class NameEntryScene extends Phaser.Scene {
 
     // Countdown bar
     const barW = totalW;
-    const barH = 8;
+    const barH = 12;
+    const barY = slotY + slotH / 2 + 90;
     this.timerBarBg = this.add.graphics();
     this.timerBarBg.fillStyle(0x2a1f14, 1);
-    this.timerBarBg.fillRect(startX, slotY + 110, barW, barH);
-    this.timerBarBg.lineStyle(1, 0x4a3724, 1);
-    this.timerBarBg.strokeRect(startX, slotY + 110, barW, barH);
+    this.timerBarBg.fillRect(startX, barY, barW, barH);
+    this.timerBarBg.lineStyle(2, 0x4a3724, 1);
+    this.timerBarBg.strokeRect(startX, barY, barW, barH);
 
     this.timerBar = this.add.graphics();
     this.timerBarStartX = startX;
-    this.timerBarY = slotY + 110;
+    this.timerBarY = barY;
     this.timerBarW = barW;
     this.timerBarH = barH;
 
     // Numeric countdown text
-    this.timerText = this.add.text(400, slotY + 140, '', {
+    this.timerText = this.add.text(cx, barY + 50, '', {
       fontFamily: FONT_FAMILY,
-      fontSize: '22px',
+      fontSize: '32px',
       color: '#e8d9a8',
       stroke: '#1a120a',
-      strokeThickness: 3,
+      strokeThickness: 4,
     }).setOrigin(0.5, 0.5);
 
     // Footer prompt
-    this.add.text(400, 540, 'esperá al timer para confirmar · por defecto AAAA', {
+    this.add.text(cx, H - 30, 'esperá al timer para confirmar · por defecto AAAA', {
       fontFamily: FONT_FAMILY,
-      fontSize: '12px',
+      fontSize: '18px',
       color: '#6a5a3d',
     }).setOrigin(0.5, 0.5);
 
@@ -133,9 +139,9 @@ export default class NameEntryScene extends Phaser.Scene {
   drawSlotBox(g, cx, cy, w, h, highlighted) {
     g.clear();
     g.fillStyle(0x2a1f14, 1);
-    g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 6);
-    g.lineStyle(2, highlighted ? 0xffd93d : 0x4a3724, 1);
-    g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 6);
+    g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 10);
+    g.lineStyle(3, highlighted ? 0xffd93d : 0x4a3724, 1);
+    g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 10);
   }
 
   cycleSlot(i) {

@@ -59,8 +59,8 @@ export default class GameScene extends Phaser.Scene {
       // streamBottomY = below the tallest possible glass bottom so the
       // stream visually reaches the floor of the cup; glass walls + the
       // liquid fill hide the submerged part naturally.
-      const splashY = GAME_CONFIG.glassY - 40;
-      const streamBottomY = GAME_CONFIG.glassY + 120;
+      const splashY = GAME_CONFIG.glassY - 80;
+      const streamBottomY = GAME_CONFIG.glassY + 240;
       const tap = new Tap(this, x, GAME_CONFIG.tapY, splashY, style, streamBottomY);
       const glass = new Glass(this, x, GAME_CONFIG.glassY, /* shape */ null, style);
       // Each tap dispenses one beer style and can't be changed mid-level,
@@ -113,68 +113,68 @@ export default class GameScene extends Phaser.Scene {
 
     // HUD — top-left: score (big) + target (small label below).
     //        top-right: level + time remaining.
-    this.scoreLabel = this.add.text(16, 10, 'PUNTAJE', {
+    this.scoreLabel = this.add.text(20, 14, 'PUNTAJE', {
       fontFamily: FONT_FAMILY,
-      fontSize: '12px',
+      fontSize: '18px',
       color: '#8a7a55',
     });
-    this.scoreText = this.add.text(16, 24, '', {
+    this.scoreText = this.add.text(20, 38, '', {
       fontFamily: FONT_FAMILY,
-      fontSize: '24px',
+      fontSize: '40px',
       color: '#ffd93d',
       stroke: '#1a120a',
-      strokeThickness: 3,
+      strokeThickness: 4,
     });
-    this.targetLabel = this.add.text(16, 54, 'OBJETIVO', {
+    this.targetLabel = this.add.text(20, 90, 'OBJETIVO', {
       fontFamily: FONT_FAMILY,
-      fontSize: '11px',
+      fontSize: '16px',
       color: '#8a7a55',
     });
-    this.targetText = this.add.text(86, 53, '', {
+    this.targetText = this.add.text(130, 88, '', {
       fontFamily: FONT_FAMILY,
-      fontSize: '14px',
+      fontSize: '22px',
       color: '#e8d9a8',
     });
     // Combo display — bottom-left, big, with a row of stars below the
     // label showing progress toward the cap. Only visible when streak ≥ 2.
-    this.comboGroup = this.add.container(20, 520);
+    this.comboGroup = this.add.container(20, this.scale.height - 200);
     this.comboGroup.setVisible(false);
 
     this.comboText = this.add.text(0, 0, '', {
       fontFamily: FONT_FAMILY,
-      fontSize: '36px',
+      fontSize: '56px',
       color: '#ffd93d',
       stroke: '#1a120a',
-      strokeThickness: 5,
+      strokeThickness: 7,
     });
-    this.comboMultText = this.add.text(0, 38, '', {
+    this.comboMultText = this.add.text(0, 60, '', {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '28px',
       color: '#fff4d6',
       stroke: '#1a120a',
-      strokeThickness: 3,
+      strokeThickness: 4,
     });
     this.comboStars = this.add.graphics();
     this.comboGroup.add([this.comboText, this.comboMultText, this.comboStars]);
     // Legacy field kept for any external callers; updated each refresh.
     this.hudText = this.scoreText;
 
-    this.levelText = this.add.text(784, 12, '', {
-      fontFamily: FONT_FAMILY,
-      fontSize: '16px',
-      color: '#a89668',
-    }).setOrigin(1, 0);
-    this.timeText = this.add.text(784, 34, '', {
+    this.levelText = this.add.text(this.scale.width - 20, 16, '', {
       fontFamily: FONT_FAMILY,
       fontSize: '24px',
+      color: '#a89668',
+    }).setOrigin(1, 0);
+    this.timeText = this.add.text(this.scale.width - 20, 48, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '40px',
       color: '#e8d9a8',
       stroke: '#1a120a',
-      strokeThickness: 3,
+      strokeThickness: 4,
     }).setOrigin(1, 0);
     this.refreshHud();
 
     // Instructions
-    this.add.text(400, 588, 'mantené 1 / 2 / 3 / 4 para servir — ¡rápido, las propinas bajan!', {
+    this.add.text(this.scale.width / 2, this.scale.height - 12, 'mantené 1 / 2 / 3 / 4 para servir — ¡rápido, las propinas bajan!', {
       fontFamily: FONT_FAMILY,
       fontSize: '12px',
       color: '#6a5a3d',
@@ -182,25 +182,26 @@ export default class GameScene extends Phaser.Scene {
   }
 
   drawBackdrop() {
+    const W = this.scale.width;
     // Customer-side floor (above the bar) — slightly darker, suggests the patrons' side.
     const bg = this.add.graphics();
     bg.fillStyle(0x231a14, 1);
-    bg.fillRect(0, 0, 800, GAME_CONFIG.tapY - 80);
+    bg.fillRect(0, 0, W, GAME_CONFIG.tapY - 80);
 
     // Wooden bar strip behind the taps.
     const bar = this.add.graphics();
     bar.fillStyle(0x3a2a1a, 1);
-    bar.fillRect(0, GAME_CONFIG.tapY - 80, 800, 60);
+    bar.fillRect(0, GAME_CONFIG.tapY - 80, W, 60);
     bar.fillStyle(0x4a3724, 1);
-    bar.fillRect(0, GAME_CONFIG.tapY - 78, 800, 4);
+    bar.fillRect(0, GAME_CONFIG.tapY - 78, W, 4);
     bar.fillStyle(0x2a1f14, 1);
-    bar.fillRect(0, GAME_CONFIG.tapY - 22, 800, 4);
+    bar.fillRect(0, GAME_CONFIG.tapY - 22, W, 4);
 
     // Counter-top under the glasses.
     bar.fillStyle(0x2a1f14, 1);
-    bar.fillRect(0, GAME_CONFIG.glassY + 100, 800, 8);
+    bar.fillRect(0, GAME_CONFIG.glassY + 180, W, 8);
     bar.fillStyle(0x1a120a, 1);
-    bar.fillRect(0, GAME_CONFIG.glassY + 108, 800, 80);
+    bar.fillRect(0, GAME_CONFIG.glassY + 188, W, 200);
   }
 
   update(_time, delta) {
@@ -248,12 +249,12 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Banner
-    const banner = this.add.text(400, 300, '¡SE ACABÓ EL TIEMPO!', {
+    const banner = this.add.text(this.scale.width / 2, this.scale.height / 2, '¡SE ACABÓ EL TIEMPO!', {
       fontFamily: FONT_FAMILY,
-      fontSize: '64px',
+      fontSize: '120px',
       color: '#ffd93d',
       stroke: '#1a120a',
-      strokeThickness: 8,
+      strokeThickness: 12,
     });
     banner.setOrigin(0.5, 0.5);
     banner.setAlpha(0);
@@ -354,10 +355,13 @@ export default class GameScene extends Phaser.Scene {
     }
     const max = GAME_CONFIG.glassReleaseAfterIdleMs;
     const remaining = Math.max(0, 1 - ms / max);
-    const W = 40;
-    const H = 2;
+    const W = 72;
+    const H = 4;
     const x = GAME_CONFIG.tapXs[i] - W / 2;
-    const y = GAME_CONFIG.glassY + 60;
+    // All glasses share a bottom baseline at glassY + 232 (BASELINE_HALF_H
+    // × spriteScale). Sit the bar just below that so it reads as ground-line
+    // beneath the cup.
+    const y = GAME_CONFIG.glassY + 240;
     bar.clear();
     bar.fillStyle(0x3a2a1a, 1);
     bar.fillRect(x, y, W, H);
@@ -654,9 +658,9 @@ export default class GameScene extends Phaser.Scene {
     g.clear();
     const TOTAL = 7; // combos until 4× cap
     const lit = Math.min(this.combo, TOTAL);
-    const starSize = 12;
-    const gap = 4;
-    const y = 70;
+    const starSize = 18;
+    const gap = 6;
+    const y = 110;
     for (let i = 0; i < TOTAL; i++) {
       const cx = i * (starSize + gap) + starSize / 2;
       const cy = y + starSize / 2;

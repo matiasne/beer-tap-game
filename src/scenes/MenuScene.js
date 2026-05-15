@@ -11,42 +11,46 @@ export default class MenuScene extends Phaser.Scene {
 
   create() {
     this.idleMs = 0;
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const cx = W / 2;
     // Backdrop — same warm dark tone as the bar.
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1612, 1);
-    bg.fillRect(0, 0, 800, 600);
+    bg.fillRect(0, 0, W, H);
 
     // A thin amber strip near the top — atmospheric, suggests the bar.
+    const stripY = Math.round(H * 0.18);
     bg.fillStyle(0x3a2a1a, 1);
-    bg.fillRect(0, 110, 800, 60);
+    bg.fillRect(0, stripY, W, 60);
     bg.fillStyle(0x4a3724, 1);
-    bg.fillRect(0, 112, 800, 4);
+    bg.fillRect(0, stripY + 2, W, 4);
     bg.fillStyle(0x2a1f14, 1);
-    bg.fillRect(0, 166, 800, 4);
+    bg.fillRect(0, stripY + 56, W, 4);
 
     // Title
-    this.add.text(400, 230, 'SERVIDA PERFECTA', {
+    this.add.text(cx, Math.round(H * 0.38), 'SERVIDA PERFECTA', {
       fontFamily: FONT_FAMILY,
-      fontSize: '44px',
+      fontSize: '80px',
       color: '#f2d36b',
       stroke: '#1a120a',
-      strokeThickness: 6,
+      strokeThickness: 8,
     }).setOrigin(0.5, 0.5);
 
     // Subtitle
-    this.add.text(400, 285, 'serví la cerveza justa, como la piden, rápido', {
+    this.add.text(cx, Math.round(H * 0.48), 'serví la cerveza justa, como la piden, rápido', {
       fontFamily: FONT_FAMILY,
-      fontSize: '16px',
+      fontSize: '24px',
       color: '#a89668',
     }).setOrigin(0.5, 0.5);
 
     // Big tap-keys prompt — replaces the start button.
-    this.promptText = this.add.text(400, 400, 'APRETÁ [1] [2] [3] o [4] PARA EMPEZAR', {
+    this.promptText = this.add.text(cx, Math.round(H * 0.66), 'APRETÁ [1] [2] [3] o [4] PARA EMPEZAR', {
       fontFamily: FONT_FAMILY,
-      fontSize: '22px',
+      fontSize: '36px',
       color: '#fff4d6',
       stroke: '#1a120a',
-      strokeThickness: 4,
+      strokeThickness: 5,
     });
     this.promptText.setOrigin(0.5, 0.5);
 
@@ -61,9 +65,9 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     // Footer instructions
-    this.add.text(400, 560, 'mantené 1 / 2 / 3 / 4 para servir de cada canilla', {
+    this.add.text(cx, H - 30, 'mantené 1 / 2 / 3 / 4 para servir de cada canilla', {
       fontFamily: FONT_FAMILY,
-      fontSize: '12px',
+      fontSize: '18px',
       color: '#6a5a3d',
     }).setOrigin(0.5, 1);
 
