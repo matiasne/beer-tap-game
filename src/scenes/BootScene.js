@@ -131,8 +131,9 @@ export default class BootScene extends Phaser.Scene {
   }
 
   /**
-   * Glass outline driven by a shape's width profile. Draws a 1px outline
-   * on each side that hugs the profile, plus a rim, base, and any extras
+   * Glass outline driven by a shape's width profile. Draws a layered look:
+   * dark outer outline, bright rim, vertical specular streak on the left,
+   * soft inner shadow on the right, base shadow ellipse, plus any extras
    * (handle for mug, stem+foot for goblet).
    */
   makeGlassShape(shape) {
@@ -144,71 +145,160 @@ export default class BootScene extends Phaser.Scene {
     const innerBottom = H - shape.bottomPaddingPx;
     const cx = Math.floor(W / 2);
 
-    const outline = 0xcfe8ff;
+    // Layered glass palette: a true outline (slight blue-grey), a bright
+    // rim/highlight, a soft inner shadow, and a deeper base shadow.
+    const outline = 0x7a9bbf;
+    const outlineDark = 0x4a6a8a;
+    const rim = 0xeaf6ff;
     const highlight = 0xffffff;
-    const inner = 0x9fbfdb;
+    const innerShadow = 0x8fb2d4;
+    const baseShadow = 0x5f7d9a;
 
     const g = this.add.graphics();
 
-    // Walk each pixel row of the inner area and draw the outline edges.
+    // Precompute halfPx per inner row so we can index neighbours when
+    // anti-stepping the outline (avoid 1px gaps when the profile changes
+    // by more than 1 column between adjacent rows).
+    const halfByRow = new Array(innerH);
     for (let y = 0; y < innerH; y++) {
-      // t=0 at bottom (innerBottom), t=1 at top (innerTop).
       const t = 1 - y / (innerH - 1);
       const widthFrac = Math.max(0, Math.min(1, shape.widthProfile(t)));
-      const halfPx = Math.max(1, Math.round((innerW * widthFrac) / 2));
+      halfByRow[y] = Math.max(1, Math.round((innerW * widthFrac) / 2));
+    }
+
+    // Side walls — draw outer outline, an inner highlight column on the
+    // left (specular streak) and a soft inner shadow on the right.
+    for (let y = 0; y < innerH; y++) {
+      const halfPx = halfByRow[y];
       const rowY = innerTop + y;
-      // Left outline
+
+      // Outer outline columns (cx - halfPx - 1 on the left, cx + halfPx on the right)
       g.fillStyle(outline, 1);
       g.fillRect(cx - halfPx - 1, rowY, 1, 1);
-      // Right outline
       g.fillRect(cx + halfPx, rowY, 1, 1);
-      // Inner highlight (left)
-      g.fillStyle(highlight, 0.45);
-      g.fillRect(cx - halfPx, rowY, 1, 1);
-      // Inner shadow (right)
-      g.fillStyle(inner, 0.35);
-      g.fillRect(cx + halfPx - 1, rowY, 1, 1);
+
+      // Fill in diagonal step gaps so the outline reads as continuous
+      // even when the profile narrows/widens quickly.
+      if (y > 0) {
+        const prev = halfByRow[y - 1];
+        const diff = halfPx - prev;
+        if (diff > 1) {
+          for (let k = 1; k < diff; k++) {
+            g.fillRect(cx - prev - 1 - k, rowY, 1, 1);
+            g.fillRect(cx + prev + k, rowY, 1, 1);
+          }
+        } else if (diff < -1) {
+          for (let k = 1; k < -diff; k++) {
+            g.fillRect(cx - prev - 1 + k, rowY - 1, 1, 1);
+            g.fillRect(cx + prev - k, rowY - 1, 1, 1);
+          }
+        }
+      }
+
+      // Specular streak — a brighter column one pixel inside the left wall.
+      // Skip the topmost and bottommost row so it doesn't bleed into rim/base.
+      if (y > 1 && y < innerH - 2) {
+        g.fillStyle(highlight, 0.55);
+        g.fillRect(cx - halfPx, rowY, 1, 1);
+        // A second, dimmer streak one column further in for a subtle "thickness" feel.
+        if (halfPx >= 4) {
+          g.fillStyle(highlight, 0.18);
+          g.fillRect(cx - halfPx + 1, rowY, 1, 1);
+        }
+      }
+
+      // Inner shadow — soft tint on the right edge to suggest curvature.
+      if (y > 0 && y < innerH - 1) {
+        g.fillStyle(innerShadow, 0.4);
+        g.fillRect(cx + halfPx - 1, rowY, 1, 1);
+      }
     }
 
-    // Top rim — span based on the topmost row's width.
-    const topWidthFrac = Math.max(0, Math.min(1, shape.widthProfile(1)));
-    const topHalf = Math.max(1, Math.round((innerW * topWidthFrac) / 2));
+    // Top rim — thicker (2px) with a bright top edge for that "lip" look.
+    const topHalf = halfByRow[0];
     g.fillStyle(outline, 1);
-    g.fillRect(cx - topHalf - 1, innerTop - 1, topHalf * 2 + 2, 1);
-    g.fillRect(cx - topHalf - 1, innerTop, 1, 1);
-    g.fillRect(cx + topHalf, innerTop, 1, 1);
+    // outer rim line (1px above the inner area)
+    g.fillRect(cx - topHalf - 1, innerTop - 2, topHalf * 2 + 2, 1);
+    // rim ears (the corners that tuck under the lip)
+    g.fillRect(cx - topHalf - 1, innerTop - 1, 1, 1);
+    g.fillRect(cx + topHalf, innerTop - 1, 1, 1);
+    // bright lip
+    g.fillStyle(rim, 1);
+    g.fillRect(cx - topHalf, innerTop - 1, topHalf * 2, 1);
+    // tiny sparkle on the upper-left of the rim
+    g.fillStyle(highlight, 1);
+    g.fillRect(cx - topHalf + 1, innerTop - 2, 2, 1);
 
-    // Bottom — span based on the bottommost row's width.
-    const botWidthFrac = Math.max(0, Math.min(1, shape.widthProfile(0)));
-    const botHalf = Math.max(1, Math.round((innerW * botWidthFrac) / 2));
+    // Bottom — span based on the bottommost row's width, with a 2px base
+    // (outer line + soft shadow below the liquid) so the glass has weight.
+    const botHalf = halfByRow[innerH - 1];
     g.fillStyle(outline, 1);
     g.fillRect(cx - botHalf - 1, innerBottom, botHalf * 2 + 2, 1);
-
-    // Optional handle (mug/stein) — D-shape on the right.
-    if (shape.handle) {
-      const hxStart = cx + botHalf + 1;
-      const hyTop = innerTop + Math.floor(innerH * 0.25);
-      const hyBot = innerTop + Math.floor(innerH * 0.7);
-      const hxEnd = Math.min(W - 1, hxStart + 5);
-      g.fillStyle(outline, 1);
-      // top arm
-      g.fillRect(hxStart, hyTop, hxEnd - hxStart + 1, 1);
-      // bottom arm
-      g.fillRect(hxStart, hyBot, hxEnd - hxStart + 1, 1);
-      // outer arc
-      g.fillRect(hxEnd, hyTop, 1, hyBot - hyTop + 1);
+    // base shadow strip just below the inner bottom (sits on the table)
+    if (!shape.stem && innerBottom + 1 < H - 1) {
+      g.fillStyle(baseShadow, 0.6);
+      g.fillRect(cx - botHalf, innerBottom + 1, botHalf * 2, 1);
+      // outer "ground shadow" — slightly wider, dimmer ellipse-ish strip
+      g.fillStyle(outlineDark, 0.35);
+      g.fillRect(cx - botHalf - 1, innerBottom + 2, botHalf * 2 + 2, 1);
     }
 
-    // Optional stem + foot (goblet).
+    // Optional handle (mug/stein) — D-shape on the right with thickness.
+    if (shape.handle) {
+      const hxStart = cx + botHalf + 1;
+      const hyTop = innerTop + Math.floor(innerH * 0.22);
+      const hyBot = innerTop + Math.floor(innerH * 0.72);
+      const hxEnd = Math.min(W - 1, hxStart + 5);
+
+      g.fillStyle(outline, 1);
+      // top arm (2px thick at the wall side, tapering)
+      g.fillRect(hxStart, hyTop, hxEnd - hxStart + 1, 1);
+      g.fillRect(hxStart, hyTop + 1, hxEnd - hxStart, 1);
+      // bottom arm
+      g.fillRect(hxStart, hyBot, hxEnd - hxStart + 1, 1);
+      g.fillRect(hxStart, hyBot - 1, hxEnd - hxStart, 1);
+      // outer arc (the curve of the D) — 2px thick
+      g.fillRect(hxEnd, hyTop, 1, hyBot - hyTop + 1);
+      g.fillRect(hxEnd - 1, hyTop + 1, 1, hyBot - hyTop - 1);
+      // bright highlight on the outer curve
+      g.fillStyle(rim, 0.7);
+      g.fillRect(hxEnd, hyTop + 1, 1, Math.max(1, Math.floor((hyBot - hyTop) / 3)));
+      // inner shadow on the inside of the handle
+      g.fillStyle(outlineDark, 0.5);
+      g.fillRect(hxStart, hyBot, 1, 1);
+      g.fillRect(hxStart, hyTop, 1, 1);
+    }
+
+    // Optional stem + foot (goblet) — adds a thicker stem with a node and
+    // a flared foot with a small ground shadow.
     if (shape.stem) {
       const stemTop = innerBottom + 1;
       const stemBot = H - 4;
-      const stemHalf = 1;
+      const stemHalf = 2;
+      // stem body
       g.fillStyle(outline, 1);
       g.fillRect(cx - stemHalf, stemTop, stemHalf * 2, stemBot - stemTop);
-      // Foot
-      const footHalf = Math.floor(W * 0.3);
+      // stem highlight (left column)
+      g.fillStyle(rim, 0.6);
+      g.fillRect(cx - stemHalf, stemTop, 1, stemBot - stemTop);
+      // stem shadow (right column)
+      g.fillStyle(outlineDark, 0.55);
+      g.fillRect(cx + stemHalf - 1, stemTop, 1, stemBot - stemTop);
+      // decorative node halfway down the stem
+      const nodeY = stemTop + Math.floor((stemBot - stemTop) / 2);
+      g.fillStyle(outline, 1);
+      g.fillRect(cx - stemHalf - 1, nodeY, stemHalf * 2 + 2, 2);
+      g.fillStyle(rim, 0.7);
+      g.fillRect(cx - stemHalf - 1, nodeY, 2, 1);
+
+      // Foot — flared base with a bright top edge and shadow line.
+      const footHalf = Math.floor(W * 0.32);
+      g.fillStyle(outline, 1);
       g.fillRect(cx - footHalf, H - 3, footHalf * 2, 2);
+      g.fillStyle(rim, 0.85);
+      g.fillRect(cx - footHalf + 1, H - 3, footHalf * 2 - 2, 1);
+      g.fillStyle(outlineDark, 0.55);
+      g.fillRect(cx - footHalf, H - 1, footHalf * 2, 1);
     }
 
     g.generateTexture(`glass_${shape.key}`, W, H);

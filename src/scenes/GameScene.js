@@ -278,6 +278,15 @@ export default class GameScene extends Phaser.Scene {
     this.score += score;
     this.showFeedback(label, color, glass.x, glass.y - 60);
 
+    // Overflow path: penalty applied, no client served, no glass swap.
+    // The bartender dunks the same glass and brings it back empty.
+    if (overflow) {
+      this.refreshHud();
+      this.idleMs[i] = null;
+      glass.dumpAndReset();
+      return;
+    }
+
     // Style mismatch: client took the glass but won't tip you for it.
     if (styleMismatch) {
       this.showFeedback(

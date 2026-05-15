@@ -425,6 +425,45 @@ export default class Glass extends Phaser.GameObjects.Container {
     this.fillGfx.fillRect(x + w - 1, yTop, 1, h);
   }
 
+  /**
+   * Overflow recovery — the bartender dunks the glass under the bar to
+   * dump it and brings it back up empty. Same shape/beer style, just
+   * reset contents. Locks input during the animation.
+   */
+  dumpAndReset(onDone) {
+    if (this.released) return;
+    this.released = true; // pause addFill / refresh during the dunk
+
+    const downDuration = Math.round(GAME_CONFIG.glassReleaseDuration * 0.4);
+    const upDuration = Math.round(GAME_CONFIG.glassReleaseDuration * 0.5);
+    const restY = this.y;
+
+    this.scene.tweens.add({
+      targets: this,
+      y: restY + 60,
+      alpha: 0,
+      duration: downDuration,
+      ease: 'Cubic.in',
+      onComplete: () => {
+        // Empty the glass while it's hidden below the bar.
+        this.fillLevel = 0;
+        this.foamLevel = 0;
+        this.refreshFill();
+        this.scene.tweens.add({
+          targets: this,
+          y: restY,
+          alpha: 1,
+          duration: upDuration,
+          ease: 'Back.out',
+          onComplete: () => {
+            this.released = false;
+            if (onDone) onDone();
+          },
+        });
+      },
+    });
+  }
+
   release(onDone) {
     if (this.released) return;
     this.released = true;
