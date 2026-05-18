@@ -1,0 +1,241 @@
+{
+  "version": 2,
+  "frameWidth": 192,
+  "frameHeight": 264,
+  "framesPerState": 6,
+  "states": [
+    "idle",
+    "normal",
+    "antsy",
+    "furious",
+    "talking_left",
+    "talking_right",
+    "walking"
+  ],
+  "characters": [
+    {
+      "id": "client_zombie",
+      "label": "Zombie",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_pirate",
+      "label": "Pirate",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_alien",
+      "label": "Alien",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_athlete",
+      "label": "Athlete",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_firefighter",
+      "label": "Firefighter",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_santa",
+      "label": "Santa",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_cop",
+      "label": "Cop",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_surgeon",
+      "label": "Surgeon",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_knight",
+      "label": "Knight",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_robot",
+      "label": "Robot",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_wizard",
+      "label": "Wizard",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_princess",
+      "label": "Princess",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_ninja",
+      "label": "Ninja",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_constructor",
+      "label": "Construction",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_clown",
+      "label": "Clown",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    },
+    {
+      "id": "client_cowboy",
+      "label": "Cowboy",
+      "special": false,
+      "states": [
+        "idle.png",
+        "normal.png",
+        "antsy.png",
+        "furious.png",
+        "talking_left.png",
+        "talking_right.png",
+        "walking.png"
+      ]
+    }
+  ]
+}

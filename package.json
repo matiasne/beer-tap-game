@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "sprites": "node scripts/build-sprite-sheet.js",
-    "glass-sprites": "node scripts/build-glass-sprite-sheet.js"
+    "glass-sprites": "node scripts/build-glass-sprite-sheet.js",
+    "chat-bubble": "node scripts/build-chat-bubble.js",
+    "backgrounds": "node scripts/build-backgrounds.js"
   },
   "dependencies": {
     "phaser": "^3.90.0"

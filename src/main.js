@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
 import MenuScene from './scenes/MenuScene.js';
+import GameModeScene from './scenes/GameModeScene.js';
 import LevelIntroScene from './scenes/LevelIntroScene.js';
 import GameScene from './scenes/GameScene.js';
 import LevelResultScene from './scenes/LevelResultScene.js';
@@ -21,6 +22,7 @@ const config = {
   scene: [
     BootScene,
     MenuScene,
+    GameModeScene,
     LevelIntroScene,
     GameScene,
     LevelResultScene,

@@ -34,6 +34,10 @@ export const GAME_CONFIG = {
 
   // Visual
   spriteScale: 4,
+  // Separate scale for glasses since their source resolution is now 2× the
+  // other procedural sprites — keeps screen footprint consistent with the
+  // pre-resolution-bump version while delivering 2× the pixel density.
+  glassSpriteScale: 2,
   // World is 1920×1080. The 4 taps are spread evenly across the wider canvas.
   tapY: 450,
   glassY: 780,
@@ -49,10 +53,10 @@ export const GAME_CONFIG = {
     queueSize: 3, // visible clients per tap
     queueXOffset: 8, // each client behind shifts this much horizontally
     queueYOffset: -2, // and this much vertically (depth illusion)
-    queueScale: 2, // sprite scale for clients
+    queueScale: 0.7, // sprite scale (frames are 192×264 source px; 0.7 → ~185 px on-screen)
     queueScaleFalloff: 0.85, // each further-back client shrinks by this factor
     queueAlphaFalloff: 0.92, // and dims
-    frontBottomY: 252, // y-coord of the front client's feet/torso bottom
+    frontBottomY: 360, // y-coord of the front client's feet (just above the bar strip)
     tipMin: 0,
     tipMax: 25,
     patienceMs: 45000, // 45s from spawn to angry-leave

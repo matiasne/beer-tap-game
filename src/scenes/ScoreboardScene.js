@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { FONT_FAMILY } from '../textStyle.js';
 import { getAll } from '../scoreboard.js';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
+import { gameModesEnabled, DEFAULT_MODE_ID } from '../gameModes.js';
 
 /**
  * Top-N high score table. Two entry modes:
@@ -169,8 +170,17 @@ export default class ScoreboardScene extends Phaser.Scene {
       return;
     }
     if (this.attract && userTriggered) {
-      // User interrupted attract — go straight to the level intro to play.
-      this.scene.start('LevelIntroScene', { level: 1, score: 0 });
+      // User interrupted attract — go to mode selection (or straight to
+      // Classic if game modes are disabled via env var).
+      if (gameModesEnabled()) {
+        this.scene.start('GameModeScene');
+      } else {
+        this.scene.start('LevelIntroScene', {
+          level: 1,
+          score: 0,
+          mode: DEFAULT_MODE_ID,
+        });
+      }
       return;
     }
     // Standard exit (came from a finished run or direct view).

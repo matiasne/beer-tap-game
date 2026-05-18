@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { onAnyTapKey } from '../tapKeyPrompt.js';
 import { FONT_FAMILY } from '../textStyle.js';
+import { gameModesEnabled, DEFAULT_MODE_ID } from '../gameModes.js';
 
 const ATTRACT_IDLE_MS = 15000;
 
@@ -82,6 +83,16 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   startGame() {
-    this.scene.start('LevelIntroScene', { level: 1, score: 0 });
+    if (gameModesEnabled()) {
+      this.scene.start('GameModeScene');
+    } else {
+      // Modes disabled via VITE_GAME_MODES_ENABLED=false — skip selection
+      // and start the classic flow directly.
+      this.scene.start('LevelIntroScene', {
+        level: 1,
+        score: 0,
+        mode: DEFAULT_MODE_ID,
+      });
+    }
   }
 }

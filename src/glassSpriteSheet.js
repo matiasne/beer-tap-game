@@ -139,27 +139,76 @@ export function drawGlass(ctx, ox, oy, shape) {
     }
   }
 
-  // --- Top rim — 3-row stack: outer dark line, bright lip, inner shadow ---
+  // --- Top rim — elliptical opening so the cup reads as 3D ---
+  // 5 rows above the inner liquid area:
+  //   row -5:   (just above the rim, empty)
+  //   row -4:   back inner cavity (dark) — narrowest, only middle pixels
+  //   row -3:   outer outline arching up at the back (rim ellipse top)
+  //   row -2:   bright front lip + outline shoulders + sparkle highlight
+  //   row -1:   bright front lip (continues) + inner shadow corners
+  // This produces the "elliptical rim" silhouette where the back of the
+  // lip peeks up above the front, with a dark visible cavity inside.
   const topHalf = halfByRow[0];
-  setFill(outline);
-  rect(cx - topHalf - 1, innerTop - 3, topHalf * 2 + 2, 1);
-  rect(cx - topHalf - 2, innerTop - 2, 1, 1);
-  rect(cx + topHalf + 1, innerTop - 2, 1, 1);
-  rect(cx - topHalf - 1, innerTop - 1, 1, 1);
-  rect(cx + topHalf, innerTop - 1, 1, 1);
 
-  // Bright lip — 2 rows so the rim reads as a real ellipse from the side.
+  // Width of the back-arc cavity (the dark ellipse interior visible from
+  // above). Roughly 60% of the rim width, capped so it doesn't get silly
+  // on huge mugs. Always ≥ 1 px so very narrow glasses still get some.
+  const cavityHalf = Math.max(1, Math.min(topHalf - 2, Math.floor(topHalf * 0.6)));
+
+  // Row -4: dark interior cavity (back inner shadow of the cup) — only on
+  // glasses wide enough to show meaningful depth.
+  if (topHalf >= 4 && cavityHalf >= 1) {
+    setFill(innerShadowDeep, 0.85);
+    rect(cx - cavityHalf, innerTop - 4, cavityHalf * 2, 1);
+  }
+
+  // Row -3: outer outline arching up at the back. Spans wider than the
+  // cavity (1 px shoulder on each side) so it reads as the back edge of
+  // the rim curving up out of the page.
+  if (topHalf >= 4) {
+    setFill(outline);
+    rect(cx - cavityHalf - 1, innerTop - 3, cavityHalf * 2 + 2, 1);
+  }
+
+  // Row -2: rim ears (corners outside the lip) + outline shoulders that
+  // connect the back arc down to the front lip + bright lip across the
+  // full width.
+  setFill(outline);
+  rect(cx - topHalf - 2, innerTop - 2, 1, 1);             // far-left ear
+  rect(cx + topHalf + 1, innerTop - 2, 1, 1);             // far-right ear
+  // Outline shoulders connecting the back arc to the side walls:
+  if (topHalf >= 4) {
+    const shoulderL = cx - cavityHalf - 1;
+    const shoulderR = cx + cavityHalf + 1;
+    const leftEnd = cx - topHalf - 1;
+    const rightEnd = cx + topHalf;
+    if (shoulderL > leftEnd) rect(leftEnd, innerTop - 2, shoulderL - leftEnd, 1);
+    if (shoulderR < rightEnd) rect(shoulderR + 1, innerTop - 2, rightEnd - shoulderR, 1);
+  } else {
+    // Narrow glasses: keep the original full-width outline (no ellipse).
+    setFill(outline);
+    rect(cx - topHalf - 1, innerTop - 3, topHalf * 2 + 2, 1);
+  }
+  // Bright lip — front face of the rim (full width).
   setFill(rim);
   rect(cx - topHalf, innerTop - 2, topHalf * 2, 1);
+
+  // Row -1: rim ears + bright lip (slightly dimmer) — front face continues.
+  setFill(outline);
+  rect(cx - topHalf - 1, innerTop - 1, 1, 1);
+  rect(cx + topHalf, innerTop - 1, 1, 1);
   setFill(rim, 0.85);
   rect(cx - topHalf, innerTop - 1, topHalf * 2, 1);
 
   // Sparkle highlight on the upper-left of the lip.
   setFill(highlight);
-  rect(cx - topHalf + 1, innerTop - 3, Math.min(4, topHalf), 1);
   rect(cx - topHalf + 1, innerTop - 2, Math.min(2, topHalf), 1);
+  // Tiny sparkle on the front face of the back arc (where light catches).
+  if (topHalf >= 4) {
+    rect(cx - Math.floor(cavityHalf / 2), innerTop - 3, Math.min(3, cavityHalf), 1);
+  }
 
-  // Inner shadow on the right side of the rim (back of the lip).
+  // Inner shadow on the right side of the lip (back of the lip front face).
   setFill(innerShadow, 0.7);
   rect(cx + topHalf - Math.min(3, topHalf), innerTop - 1, Math.min(3, topHalf), 1);
 

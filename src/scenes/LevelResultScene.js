@@ -19,6 +19,7 @@ export default class LevelResultScene extends Phaser.Scene {
     this.score = data?.score ?? 0;
     this.target = data?.target ?? 0;
     this.passed = !!data?.passed;
+    this.modeId = data?.mode ?? 'classic';
   }
 
   create() {
@@ -113,6 +114,7 @@ export default class LevelResultScene extends Phaser.Scene {
     this.scene.start('LevelIntroScene', {
       level: this.level + 1,
       score: this.score, // keep the cumulative score
+      mode: this.modeId,
     });
   }
 

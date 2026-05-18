@@ -7,6 +7,8 @@ import { evaluateAgainstPreference } from '../clientPreferences.js';
 import { shuffleAndPickStyles } from '../beerStyles.js';
 import { levelTimeSec, levelTarget } from '../levels.js';
 import { FONT_FAMILY } from '../textStyle.js';
+import { backgroundForLevel, bgTextureKey, bgBackTextureKey, BG_W, BG_H } from '../backgrounds.js';
+import { getMode, DEFAULT_MODE_ID } from '../gameModes.js';
 
 const KEY_NAMES = ['ONE', 'TWO', 'THREE', 'FOUR'];
 
@@ -19,7 +21,12 @@ export default class GameScene extends Phaser.Scene {
     this.level = data?.level ?? 1;
     this.startingScore = data?.score ?? 0;
     this.score = this.startingScore;
-    this.timeLimitSec = levelTimeSec(this.level);
+    // Game mode — controls tap count, timer, lives, scoring rules.
+    // Stored on the scene so methods can branch on it and so we can pass
+    // it forward to the result + next-level scenes.
+    this.modeId = data?.mode ?? DEFAULT_MODE_ID;
+    this.mode = getMode(this.modeId);
+    this.timeLimitSec = this.mode.timeOverrideSec ?? levelTimeSec(this.level);
     this.target = levelTarget(this.level);
     this.timeRemainingMs = this.timeLimitSec * 1000;
     this.timeUp = false;            // set when the timer hits 0
@@ -29,6 +36,13 @@ export default class GameScene extends Phaser.Scene {
     this.inputCooldownMs = 180;
     // Consecutive perfect-pour combo counter. Resets on any non-perfect.
     this.combo = 0;
+    // Survival lives — only used when mode.livesOverride is set. Pulled
+    // from init data on level-2+ entries so lives carry across levels.
+    this.lives = data?.lives ?? this.mode.livesOverride;
+    // Game-over flag separate from timeUp — survival ends the run when
+    // lives hit 0, which takes a different exit path than the normal
+    // time-up flow.
+    this.outOfLives = false;
   }
 
   create() {
@@ -37,22 +51,32 @@ export default class GameScene extends Phaser.Scene {
 
     this.drawBackdrop();
 
-    // Build the four tap+glass+queue triples.
-    this.taps = [];
-    this.glasses = [];
-    this.queues = [];
+    // Build the tap+glass+queue triples per active station.
+    // Most modes use all 4 stations; Speed Run uses 1 (the center tap).
+    // Inactive slots stay `undefined` in the per-tap arrays and are
+    // skipped during updateTap.
+    this.taps = new Array(4);
+    this.glasses = new Array(4);
+    this.queues = new Array(4);
     this.pendingSpawn = [false, false, false, false];
-    // Ms since the tap last stopped pouring on a still-present glass.
-    // null = either currently pouring, or there's no glass to release.
     this.idleMs = [null, null, null, null];
-    // Timestamps for the feathering technique (tap-tap-tap = less foam).
-    // -Infinity means "never released" so the first press isn't feathered.
     this.lastStopAt = [-Infinity, -Infinity, -Infinity, -Infinity];
     this.featherUntil = [0, 0, 0, 0];
-    // Idle-to-auto-release countdown bar (per tap). One Graphics each.
-    this.idleBars = [];
+    this.idleBars = new Array(4);
 
-    for (let i = 0; i < 4; i++) {
+    // activeTapIndices: which tap slots get a real tap built. Speed Run
+    // uses just one tap (index 2 — near center for visual balance).
+    const totalTaps = 4;
+    let activeTapIndices;
+    if (this.mode.taps === 1) {
+      activeTapIndices = [2];
+    } else {
+      activeTapIndices = [0, 1, 2, 3];
+    }
+    this.activeTapIndices = activeTapIndices;
+
+    for (let i = 0; i < totalTaps; i++) {
+      if (!activeTapIndices.includes(i)) continue;
       const x = GAME_CONFIG.tapXs[i];
       const style = this.beerStyles[i];
       // splashY = rim line (where the stream first contacts the cup).
@@ -63,20 +87,34 @@ export default class GameScene extends Phaser.Scene {
       const streamBottomY = GAME_CONFIG.glassY + 240;
       const tap = new Tap(this, x, GAME_CONFIG.tapY, splashY, style, streamBottomY);
       const glass = new Glass(this, x, GAME_CONFIG.glassY, /* shape */ null, style);
-      // Each tap dispenses one beer style and can't be changed mid-level,
-      // so clients at this queue only ever want that same style.
-      const queue = new ClientQueue(this, x, [style]);
-      queue.onAngryLeave(() => {
-        this.score += GAME_CONFIG.clients.angryPenalty;
-        this.refreshHud();
-        this.showFeedback('¡se fue enojado!', '#ff4a2a', x, GAME_CONFIG.clients.frontBottomY - 80);
-      });
-      this.taps.push(tap);
-      this.glasses.push(glass);
-      this.queues.push(queue);
+      this.taps[i] = tap;
+      this.glasses[i] = glass;
+
+      // Queue is only built for modes with clients. In Speed Run we skip
+      // it entirely so no one ever shows up to be served — pouring is the
+      // whole gameplay loop.
+      if (!this.mode.noClients) {
+        const queue = new ClientQueue(this, x, [style]);
+        queue.onAngryLeave(() => {
+          this.score += GAME_CONFIG.clients.angryPenalty;
+          // Survival: each angry leave also costs a life.
+          if (this.mode.livesOverride != null) {
+            this.lives = Math.max(0, this.lives - 1);
+            this.showFeedback('-1 VIDA', '#ff4a2a', x, GAME_CONFIG.clients.frontBottomY - 120);
+            if (this.lives <= 0 && !this.outOfLives) {
+              this.outOfLives = true;
+              this.handleGameOver();
+            }
+          }
+          this.refreshHud();
+          this.showFeedback('¡se fue enojado!', '#ff4a2a', x, GAME_CONFIG.clients.frontBottomY - 80);
+        });
+        this.queues[i] = queue;
+      }
+
       const idleBar = this.add.graphics();
       idleBar.setVisible(false);
-      this.idleBars.push(idleBar);
+      this.idleBars[i] = idleBar;
     }
 
     // Input — keys 1..4.
@@ -135,6 +173,23 @@ export default class GameScene extends Phaser.Scene {
       fontSize: '22px',
       color: '#e8d9a8',
     });
+    // Lives HUD — only visible in modes with a lives system (Survival).
+    // Drawn under the score: a "VIDAS" label + heart icons rendered with Graphics.
+    this.livesLabel = this.add.text(20, 90, 'VIDAS', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '16px',
+      color: '#8a7a55',
+    });
+    this.livesGfx = this.add.graphics();
+    if (this.mode.livesOverride == null) {
+      // Classic + other modes: hide lives, show target.
+      this.livesLabel.setVisible(false);
+      this.livesGfx.setVisible(false);
+    } else {
+      // Survival: hide target row, show lives.
+      this.targetLabel.setVisible(false);
+      this.targetText.setVisible(false);
+    }
     // Combo display — bottom-left, big, with a row of stars below the
     // label showing progress toward the cap. Only visible when streak ≥ 2.
     this.comboGroup = this.add.container(20, this.scale.height - 200);
@@ -171,6 +226,7 @@ export default class GameScene extends Phaser.Scene {
       stroke: '#1a120a',
       strokeThickness: 4,
     }).setOrigin(1, 0);
+    if (this.mode.noTimer) this.timeText.setVisible(false);
     this.refreshHud();
 
     // Instructions
@@ -183,10 +239,23 @@ export default class GameScene extends Phaser.Scene {
 
   drawBackdrop() {
     const W = this.scale.width;
-    // Customer-side floor (above the bar) — slightly darker, suggests the patrons' side.
-    const bg = this.add.graphics();
-    bg.fillStyle(0x231a14, 1);
-    bg.fillRect(0, 0, W, GAME_CONFIG.tapY - 80);
+    const customerH = GAME_CONFIG.tapY - 80; // top portion above the bar strip
+
+    // Level-specific background image fills the customer-side area.
+    // Falls back to a flat dark fill if the texture isn't ready.
+    const bgEntry = backgroundForLevel(this.level);
+    const bgKey = bgTextureKey(bgEntry.id);
+    if (this.textures.exists(bgKey)) {
+      const img = this.add.image(0, 0, bgKey).setOrigin(0, 0);
+      // BG_W × BG_H matches the canvas area precisely, but use displaySize
+      // defensively in case the canvas size shifts later.
+      img.setDisplaySize(W, customerH);
+      img.setDepth(-10);
+    } else {
+      const bg = this.add.graphics();
+      bg.fillStyle(0x231a14, 1);
+      bg.fillRect(0, 0, W, customerH);
+    }
 
     // Wooden bar strip behind the taps.
     const bar = this.add.graphics();
@@ -196,6 +265,19 @@ export default class GameScene extends Phaser.Scene {
     bar.fillRect(0, GAME_CONFIG.tapY - 78, W, 4);
     bar.fillStyle(0x2a1f14, 1);
     bar.fillRect(0, GAME_CONFIG.tapY - 22, W, 4);
+
+    // Back-bar wall — the wall behind the row of taps (between the bar
+    // strip and the counter-top). Drawn at depth -9 so it sits in front
+    // of the customer-side bg (depth -10) but behind the taps + glasses
+    // + clients (default depth 0).
+    const backY = GAME_CONFIG.tapY - 20;        // just below the bar strip
+    const backH = GAME_CONFIG.glassY + 180 - backY; // up to the counter-top
+    const backKey = bgBackTextureKey(bgEntry.id);
+    if (this.textures.exists(backKey)) {
+      const img = this.add.image(0, backY, backKey).setOrigin(0, 0);
+      img.setDisplaySize(W, backH);
+      img.setDepth(-9);
+    }
 
     // Counter-top under the glasses.
     bar.fillStyle(0x2a1f14, 1);
@@ -209,7 +291,9 @@ export default class GameScene extends Phaser.Scene {
       this.inputCooldownMs = Math.max(0, this.inputCooldownMs - delta);
     }
 
-    if (!this.timeUp) {
+    // Timer countdown — skipped for modes with no timer (Survival).
+    // The run ends via lives instead.
+    if (!this.timeUp && !this.mode.noTimer) {
       this.timeRemainingMs -= delta;
       if (this.timeRemainingMs <= 0) {
         this.timeRemainingMs = 0;
@@ -218,8 +302,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     for (let i = 0; i < 4; i++) {
-      this.queues[i].update(delta);
-      this.updateTap(i, delta);
+      if (this.queues[i]) this.queues[i].update(delta);
+      if (this.taps[i]) this.updateTap(i, delta);
     }
 
     this.refreshHud();
@@ -268,12 +352,78 @@ export default class GameScene extends Phaser.Scene {
 
     // Brief delay to let feedback animations settle, then transition.
     this.time.delayedCall(1400, () => {
-      const passed = this.score >= this.target;
+      if (this.mode.infiniteLevels) {
+        // Survival: time-up just advances to the next level, no result screen.
+        // The run only ends via handleGameOver when lives hit 0.
+        this.scene.start('LevelIntroScene', {
+          level: this.level + 1,
+          score: this.score,
+          mode: this.modeId,
+          lives: this.lives,
+        });
+        return;
+      }
+      // Speed Run is a one-shot run — never "passes" to a next level.
+      // Combo Master + Classic use the score-vs-target check.
+      const passed = this.mode.noClients ? false : (this.score >= this.target);
       this.scene.start('LevelResultScene', {
         level: this.level,
         score: this.score,
         target: this.target,
         passed,
+        mode: this.modeId,
+      });
+    });
+  }
+
+  /**
+   * Lives-based game over (Survival only). Stops gameplay, shows a
+   * dramatic banner, then routes to LevelResultScene with passed=false
+   * so the regular game-over flow (scoreboard etc.) runs.
+   */
+  handleGameOver() {
+    // Stop pours + drop cups same as handleTimeUp.
+    this.timeUp = true; // gates input + tap updates
+    for (let i = 0; i < 4; i++) {
+      const tap = this.taps[i];
+      const glass = this.glasses[i];
+      if (tap?.isPouring) tap.stopPour();
+      if (glass && !glass.released) {
+        this.idleMs[i] = null;
+        this.idleBars[i]?.setVisible(false);
+        glass.releaseDown();
+        this.glasses[i] = null;
+      }
+    }
+
+    // Banner — different from "time up" so the player knows why
+    const banner = this.add.text(this.scale.width / 2, this.scale.height / 2, '¡SIN VIDAS!', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '140px',
+      color: '#ff4a2a',
+      stroke: '#1a120a',
+      strokeThickness: 12,
+    });
+    banner.setOrigin(0.5, 0.5);
+    banner.setAlpha(0);
+    this.tweens.add({
+      targets: banner,
+      alpha: 1,
+      scale: { from: 0.6, to: 1 },
+      duration: 280,
+      ease: 'Back.out',
+    });
+
+    this.time.delayedCall(1800, () => {
+      // Survival never "passes" in the classic sense — there's no target.
+      // Send to LevelResultScene with passed=false so the existing
+      // game-over → scoreboard pipeline triggers as usual.
+      this.scene.start('LevelResultScene', {
+        level: this.level,
+        score: this.score,
+        target: 0,
+        passed: false,
+        mode: this.modeId,
       });
     });
   }
@@ -377,8 +527,11 @@ export default class GameScene extends Phaser.Scene {
     const totalPct = Math.min(glass.totalLevel, 150);
     const liquidPct = Math.max(0, glass.fillLevel);
     const foamPct = Math.max(0, glass.foamLevel);
-    const frontPref = this.queues[i].frontPreference();
-    const frontWantedStyle = this.queues[i].frontWantedBeerStyle();
+    // In noClients modes (Speed Run) there's no queue — scoring falls
+    // through to the absolute-quality tier in scoreFor when preference is null.
+    const queue = this.queues[i];
+    const frontPref = queue ? queue.frontPreference() : null;
+    const frontWantedStyle = queue ? queue.frontWantedBeerStyle() : null;
     const pouredStyle = this.beerStyles[i];
     const styleMismatch =
       frontWantedStyle != null && pouredStyle.key !== frontWantedStyle.key;
@@ -461,8 +614,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Pay the front client at this tap (if any) — they take the glass.
     // Mismatched style → 0× multiplier (no tip). Otherwise scaled by preference fit.
+    // In noClients modes (Speed Run) there's no queue so no tip is paid.
     const effectiveMultiplier = styleMismatch ? 0 : tipMultiplier;
-    const { tip } = this.queues[i].serveFront(effectiveMultiplier);
+    const { tip } = queue ? queue.serveFront(effectiveMultiplier) : { tip: 0 };
     if (tip > 0) {
       this.score += tip;
       const mulNote =
@@ -517,25 +671,32 @@ export default class GameScene extends Phaser.Scene {
       return { score: 0, tipMultiplier: 0.4 };
     }
 
+    let result;
     if (!preference) {
       // No client — neutral grade based on fill tier alone.
       const tierPct = Math.min(totalPct, 100);
-      if (tierPct >= 96) return { score: 250, tipMultiplier: 1 };
-      if (tierPct >= 90) return { score: 100, tipMultiplier: 1 };
-      if (tierPct >= 70) return { score: 50, tipMultiplier: 1 };
-      return { score: 25, tipMultiplier: 1 };
+      if (tierPct >= 96) result = { score: 250, tipMultiplier: 1 };
+      else if (tierPct >= 90) result = { score: 100, tipMultiplier: 1 };
+      else if (tierPct >= 70) result = { score: 50, tipMultiplier: 1 };
+      else result = { score: 25, tipMultiplier: 1 };
+    } else {
+      const ev = evaluateAgainstPreference(liquidPct, foamPct, preference);
+      let score;
+      if (ev.fillInWindow && ev.foamInWindow) score = 250;
+      else if (ev.fillInWindow || ev.foamInWindow) {
+        score = ev.matchScore > 0.6 ? 100 : 50;
+      } else {
+        score = ev.matchScore > 0.4 ? 50 : 25;
+      }
+      result = { score, tipMultiplier: ev.tipMultiplier };
     }
 
-    const ev = evaluateAgainstPreference(liquidPct, foamPct, preference);
-    let score;
-    if (ev.fillInWindow && ev.foamInWindow) score = 250;
-    else if (ev.fillInWindow || ev.foamInWindow) {
-      // One axis perfect, judge severity of the miss on the other.
-      score = ev.matchScore > 0.6 ? 100 : 50;
-    } else {
-      score = ev.matchScore > 0.4 ? 50 : 25;
+    // Combo Master: only perfect pours (score 250) count. Anything else
+    // gets zeroed out, both points and tip.
+    if (this.mode?.onlyPerfectsScore && result.score < 250) {
+      result = { score: 0, tipMultiplier: 0 };
     }
-    return { score, tipMultiplier: ev.tipMultiplier };
+    return result;
   }
 
   /**
@@ -647,6 +808,26 @@ export default class GameScene extends Phaser.Scene {
         this.comboGroup.setVisible(false);
       }
     }
+    // Hearts row (Survival only)
+    if (this.mode?.livesOverride != null && this.livesGfx) {
+      this.drawLives();
+    }
+  }
+
+  /** Pixel-art heart row in the HUD — one heart per remaining life. */
+  drawLives() {
+    const g = this.livesGfx;
+    g.clear();
+    const startX = 100;
+    const y = 92;
+    const size = 22;
+    const gap = 6;
+    const total = this.mode.livesOverride;
+    for (let i = 0; i < total; i++) {
+      const filled = i < this.lives;
+      const x = startX + i * (size + gap);
+      drawHeart(g, x, y, size, filled);
+    }
   }
 
   /**
@@ -695,4 +876,53 @@ function drawStar(g, cx, cy, r, filled) {
   g.closePath();
   g.fillPath();
   g.strokePath();
+}
+
+/**
+ * Pixel-art heart at (x, y) of total `size`. `filled` toggles between a
+ * full red heart (life remaining) and a dim outline-only heart (lost life).
+ * Built from rectangles arranged into a classic 2-lobe heart silhouette.
+ */
+function drawHeart(g, x, y, size, filled) {
+  const s = size / 8; // each "pixel" of the heart is s display-px wide
+  const heart = filled ? 0xff4a4a : 0x3a2a1a;
+  const lite = filled ? 0xff9a9a : 0x4a3a2a;
+  const outline = filled ? 0x8a1010 : 0x2a1a10;
+  // The classic 8×7 pixel heart pattern:
+  //   .##.##.
+  //   #######
+  //   #######
+  //   .#####.
+  //   ..###..
+  //   ...#...
+  // ('1' = body, '2' = highlight, '0' = transparent)
+  const grid = [
+    '0220220',
+    '2112112',
+    '1111111',
+    '0111110',
+    '0011100',
+    '0001000',
+  ];
+  for (let row = 0; row < grid.length; row++) {
+    for (let col = 0; col < grid[row].length; col++) {
+      const ch = grid[row][col];
+      if (ch === '0') continue;
+      const color = ch === '2' ? lite : heart;
+      g.fillStyle(color, 1);
+      g.fillRect(x + col * s, y + row * s, s, s);
+    }
+  }
+  // Outline — render once around the pattern.
+  g.lineStyle(Math.max(1, s * 0.5), outline, filled ? 1 : 0.6);
+  // Top-left lobe outline
+  for (const [r, c] of [[0, 1], [0, 2]]) {
+    g.strokeRect(x + c * s, y + r * s, s, s);
+  }
+  // Top-right lobe outline
+  for (const [r, c] of [[0, 4], [0, 5]]) {
+    g.strokeRect(x + c * s, y + r * s, s, s);
+  }
+  // Bottom tip
+  g.strokeRect(x + 3 * s, y + 5 * s, s, s);
 }

@@ -3,7 +3,7 @@ import { GAME_CONFIG } from '../config.js';
 import { pickRandomShape } from '../glassShapes.js';
 import { BEER_STYLES } from '../beerStyles.js';
 
-const SCALE = GAME_CONFIG.spriteScale;
+const SCALE = GAME_CONFIG.glassSpriteScale ?? GAME_CONFIG.spriteScale;
 const FOAM_COLOR = 0xfff4d6;
 const FOAM_HIGHLIGHT = 0xffffff;
 const FOAM_SHADOW = 0xe6d6a8;
@@ -84,7 +84,10 @@ export default class Glass extends Phaser.GameObjects.Container {
     // pixels. Each bubble has a row/col offset (0..1, multiplied at draw
     // time) and a radius of 1 or 2 source pixels. Radius-2 bubbles get a
     // dark outline ring + bright center; radius-1 are single dots.
-    const areaFactor = Math.max(1, Math.round((innerW * innerH) / 800));
+    // Divisor scales with inner area (innerW × innerH). Original baseline at
+    // ~800 was tuned for ~22×38 inner; the new 2× resolution makes that
+    // ~3200. Keeps bubble density per visible pixel roughly constant.
+    const areaFactor = Math.max(1, Math.round((innerW * innerH) / 3200));
     const bubbleCount = 14 * areaFactor;
     this.bubbles = [];
     for (let i = 0; i < bubbleCount; i++) {
@@ -147,7 +150,7 @@ export default class Glass extends Phaser.GameObjects.Container {
     // bar regardless of their outer height. Baseline = half of the tallest
     // glass; shorter glasses get shifted down in local space so their
     // bottoms land at the same screen Y as the tallest one.
-    const BASELINE_HALF_H = 116 / 2; // tallest outerHeightPx in glassShapes
+    const BASELINE_HALF_H = 232 / 2; // tallest outerHeightPx in glassShapes (weizen)
     const halfH = this.shape.outerHeightPx / 2;
     const bottomBaselineOffset = (BASELINE_HALF_H - halfH) * SCALE;
 
@@ -253,6 +256,18 @@ export default class Glass extends Phaser.GameObjects.Container {
         liquidColor,
         liquidEdge,
       );
+    }
+
+    // --- Liquid surface ellipse — only visible when foam isn't covering ---
+    // A tilted ellipse line drawn at the top of the liquid showing the
+    // surface of the beer when viewed slightly from above. The back arc
+    // is dark (deep liquid), the front edge bright (catches the light).
+    if (liquidTargetVol > 0 && visInsideFoamPct <= 0.5) {
+      const surfaceRow = liquidPartial > 0 ? liquidTopRow + 1 : liquidTopRow;
+      const surfacePartial = liquidPartial > 0 ? liquidPartial : 1;
+      if (surfaceRow >= 0 && surfaceRow < this.innerH) {
+        this.drawLiquidSurface(surfaceRow, surfacePartial, liquidColor, liquidEdge);
+      }
     }
 
     // --- Foam inside the glass ---
@@ -420,6 +435,59 @@ export default class Glass extends Phaser.GameObjects.Container {
         this.fillGfx.fillStyle(edge, 0.45);
         this.fillGfx.fillRect(x + shadowCol * SCALE, y, shadowW * SCALE, h);
       }
+    }
+  }
+
+  /**
+   * Paint the elliptical liquid surface at the top of the fill. Reads as
+   * "seeing slightly into the cup from above". Shape:
+   *
+   *   ─ ─ ─ ─ ─ ─ ─    back-arc row (1 src px above surface) — dark liquid edge
+   *   ░ ░ ░ ░ ░ ░ ░    surface front row — bright highlight catching light
+   *
+   * The back arc shows the rear of the liquid surface curving up; the
+   * highlight row sits at the very top of the liquid front-face.
+   */
+  drawLiquidSurface(rowIdx, partialFrac, liquidColor, liquidEdge) {
+    const widthFrac = this.volPerRow[rowIdx];
+    const halfPx = Math.max(1, Math.round((this.innerW * widthFrac) / 2));
+    const innerWidth = halfPx * 2;
+    // y of the top of the (possibly partial) row.
+    const yTop = this.innerBottomLocalY - rowIdx * SCALE - partialFrac * SCALE;
+
+    // Back arc — 1 src px above yTop, slightly narrower than the row.
+    // Glasses too narrow don't get a separate back arc (would just be 1 dot).
+    if (innerWidth >= 6) {
+      const backInset = Math.max(1, Math.floor(innerWidth * 0.12));
+      const backW = innerWidth - backInset * 2;
+      this.fillGfx.fillStyle(liquidEdge, 0.85);
+      this.fillGfx.fillRect(
+        -halfPx * SCALE + backInset * SCALE,
+        yTop - SCALE,
+        backW * SCALE,
+        SCALE,
+      );
+    }
+
+    // Front-face highlight along the very top row of the liquid.
+    // Bright pale strip that reads as light catching the meniscus.
+    this.fillGfx.fillStyle(0xffffff, 0.4);
+    this.fillGfx.fillRect(
+      -halfPx * SCALE + SCALE,
+      yTop,
+      (innerWidth - 2) * SCALE,
+      Math.max(1, Math.floor(SCALE / 2)),
+    );
+
+    // Tiny sparkle on the upper-left of the surface for shine.
+    if (innerWidth >= 8) {
+      this.fillGfx.fillStyle(0xffffff, 0.9);
+      this.fillGfx.fillRect(
+        -halfPx * SCALE + Math.floor(innerWidth * 0.25) * SCALE,
+        yTop,
+        SCALE,
+        Math.max(1, Math.floor(SCALE / 2)),
+      );
     }
   }
 
@@ -647,34 +715,44 @@ export default class Glass extends Phaser.GameObjects.Container {
       raw[i] = Math.round(maxAvailableDripPx * col.maxLenFrac * clamped);
     }
 
-    // ---- 2) Smooth lengths with a 3-tap blur, twice ----
-    // Replaces saw-tooth tips with rounded dome-shaped bulges.
+    // ---- 2) Smooth lengths with a 3-tap blur, three passes ----
+    // Replaces saw-tooth tips with rounded dome-shaped bulges. Three
+    // passes give a much softer profile than two — neighbor columns
+    // trend strongly toward each other so isolated tall spikes flatten.
     const smooth = (src) => {
       const out = new Array(src.length);
       for (let i = 0; i < src.length; i++) {
         const a = src[Math.max(0, i - 1)];
         const b = src[i];
         const c = src[Math.min(src.length - 1, i + 1)];
-        out[i] = (a + b + b + c) / 4; // weighted center, keeps overall shape
+        out[i] = (a + b + b + c) / 4;
       }
       return out;
     };
-    let lenF = smooth(smooth(raw));
-    // ---- 3) Round each "bulge" end by 1px so the corners aren't sharp ----
-    // For each column, look at neighbors: if both are MUCH shorter, snip
-    // this column's tip by 1 src px (rounds the apex of a peak).
+    let lenF = smooth(smooth(smooth(raw)));
+
+    // ---- 3) Clamp every column to within 1 px of its neighbors' max ----
+    // Iterative pass: any column more than 1 px taller than BOTH of its
+    // neighbors gets clamped down to (max(neighbor) + 1). This eliminates
+    // single-column spikes — apex columns become rounded plateaus.
     const lens = new Array(colCount);
-    for (let i = 0; i < colCount; i++) {
-      const v = lenF[i];
-      const left = i > 0 ? lenF[i - 1] : v;
-      const right = i < colCount - 1 ? lenF[i + 1] : v;
-      // Apex column: taller than BOTH neighbors → trim 1 px off the tip.
-      let l = Math.round(v);
-      if (v > left + 0.5 && v > right + 0.5) l = Math.max(0, l - 1);
-      // Shoulder column adjacent to a tall apex: also trim 1 px to round
-      // the shoulder.
-      else if (v > 1 && (left > v + 1.5 || right > v + 1.5)) l = Math.max(0, l - 1);
-      lens[i] = l;
+    for (let i = 0; i < colCount; i++) lens[i] = Math.round(lenF[i]);
+    // Two passes so that flattening one spike doesn't expose a new one.
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < colCount; i++) {
+        const left = i > 0 ? lens[i - 1] : lens[i];
+        const right = i < colCount - 1 ? lens[i + 1] : lens[i];
+        const maxNeighbor = Math.max(left, right);
+        if (lens[i] > maxNeighbor + 1) lens[i] = maxNeighbor + 1;
+      }
+    }
+    // Apex rounding: a column whose two neighbors are BOTH equal to it
+    // (a plateau) is fine. But if it's a true single-column peak (taller
+    // than both, only by 1 now), trim by 1 to round the apex.
+    for (let i = 1; i < colCount - 1; i++) {
+      if (lens[i] > lens[i - 1] && lens[i] > lens[i + 1]) {
+        lens[i] = Math.max(0, lens[i] - 1);
+      }
     }
 
     // ---- 4) Top outline strip just below the rim ----
@@ -733,31 +811,60 @@ export default class Glass extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Big cartoony 4-row teardrop bead hanging off the bottom of a heavy
-   * drip column. Drawn with a dark outline and a sparkle highlight.
+   * Rounded teardrop bead hanging off the bottom of a heavy drip column.
+   * Real water droplets are narrow where they meet the source and bulge
+   * out toward a rounded bottom — the opposite of a diamond. 5 src-px rows:
+   *
+   *     ##        row 0 — neck (narrow, attached to drip)
+   *    ####       row 1
+   *    ####       row 2 — fattest part
+   *    ####       row 3
+   *     ##        row 4 — rounded bottom tip
+   *
+   * Drawn with a dark outline ring and a bright sparkle on the upper-left.
    */
   drawDripBead(g, columnX, beadTopY, outline) {
-    const halfBead = SCALE; // 1 src px each side of center
     const beadCenterX = columnX + Math.floor(SCALE / 2);
-    // Outline
+    const half1 = SCALE;       // 1 src-px each side of center → 2 px wide
+    const half2 = SCALE * 2;   // 2 src-px each side → 4 px wide
+
+    // Row offsets in display px (0 = topmost row, +SCALE per src-px row).
+    const r0 = beadTopY;                  // narrow neck
+    const r1 = beadTopY + SCALE;          // fat upper
+    const r2 = beadTopY + SCALE * 2;      // fattest middle
+    const r3 = beadTopY + SCALE * 3;      // fat lower
+    const r4 = beadTopY + SCALE * 4;      // narrow rounded tip
+
+    // ---- Outline ring ----
     g.fillStyle(outline, 1);
-    g.fillRect(beadCenterX - halfBead, beadTopY - 1, halfBead * 2, 1);
-    g.fillRect(beadCenterX - halfBead * 2, beadTopY, 1, SCALE);
-    g.fillRect(beadCenterX + halfBead * 2 - 1, beadTopY, 1, SCALE);
-    g.fillRect(beadCenterX - halfBead * 2 - 1, beadTopY + SCALE, 1, SCALE);
-    g.fillRect(beadCenterX + halfBead * 2, beadTopY + SCALE, 1, SCALE);
-    g.fillRect(beadCenterX - halfBead * 2, beadTopY + SCALE * 2, 1, SCALE);
-    g.fillRect(beadCenterX + halfBead * 2 - 1, beadTopY + SCALE * 2, 1, SCALE);
-    g.fillRect(beadCenterX - halfBead, beadTopY + SCALE * 3, halfBead * 2, 1);
-    // Cream foam interior
+    // Top neck — 2 px wide, 1-px-thick outline arch above it.
+    g.fillRect(beadCenterX - half1, r0 - 1, half1 * 2, 1);
+    // Neck side walls
+    g.fillRect(beadCenterX - half1 - 1, r0, 1, SCALE);
+    g.fillRect(beadCenterX + half1, r0, 1, SCALE);
+    // Fattest section side walls (rows 1-3)
+    g.fillRect(beadCenterX - half2 - 1, r1, 1, SCALE * 3);
+    g.fillRect(beadCenterX + half2, r1, 1, SCALE * 3);
+    // Bottom — symmetrical to the top: 2 px wide, outline arch below.
+    g.fillRect(beadCenterX - half1 - 1, r4, 1, SCALE);
+    g.fillRect(beadCenterX + half1, r4, 1, SCALE);
+    g.fillRect(beadCenterX - half1, r4 + SCALE, half1 * 2, 1);
+
+    // ---- Cream foam interior ----
     g.fillStyle(FOAM_COLOR, 1);
-    g.fillRect(beadCenterX - halfBead, beadTopY, halfBead * 2, SCALE);
-    g.fillRect(beadCenterX - halfBead * 2, beadTopY + SCALE, halfBead * 4, SCALE);
-    g.fillRect(beadCenterX - halfBead * 2, beadTopY + SCALE * 2, halfBead * 4, SCALE);
-    g.fillRect(beadCenterX - halfBead, beadTopY + SCALE * 3, halfBead * 2, SCALE);
-    // Highlight sparkle on the upper-left
+    g.fillRect(beadCenterX - half1, r0, half1 * 2, SCALE);          // neck
+    g.fillRect(beadCenterX - half2, r1, half2 * 2, SCALE);          // row 1
+    g.fillRect(beadCenterX - half2, r2, half2 * 2, SCALE);          // row 2
+    g.fillRect(beadCenterX - half2, r3, half2 * 2, SCALE);          // row 3
+    g.fillRect(beadCenterX - half1, r4, half1 * 2, SCALE);          // rounded tip
+
+    // ---- Sparkle highlight on the upper-left of the bulge ----
     g.fillStyle(FOAM_HIGHLIGHT, 1);
-    g.fillRect(beadCenterX - halfBead, beadTopY + SCALE, SCALE, SCALE);
+    g.fillRect(beadCenterX - half2 + SCALE, r1, SCALE, SCALE);
+
+    // ---- Soft shadow on the lower-right of the bulge ----
+    g.fillStyle(FOAM_SHADOW, 0.55);
+    g.fillRect(beadCenterX + half2 - SCALE, r3, SCALE, SCALE);
   }
 
   /**
