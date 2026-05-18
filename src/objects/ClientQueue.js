@@ -15,13 +15,18 @@ const C = GAME_CONFIG.clients;
  *   .onAngryLeave(callback)    — register score-penalty callback
  */
 export default class ClientQueue {
-  constructor(scene, anchorX, availableBeerStyles = []) {
+  constructor(scene, anchorX, availableBeerStyles = [], opts = {}) {
     this.scene = scene;
     this.anchorX = anchorX;
     this.availableBeerStyles = availableBeerStyles;
     this.clients = []; // index 0 = front
     this.nextSpawnAt = scene.time.now + C.initialSpawnDelayMs;
     this.angryCb = null;
+    // Tanda-mode options: cap the total spawn count and disable the
+    // front-client patience drain so clients only leave when served.
+    this.maxTotalSpawns = opts.maxTotalSpawns ?? null; // null = unlimited
+    this.noPatienceDecay = !!opts.noPatienceDecay;
+    this.totalSpawned = 0;
     // Idle-chatter scheduler — back clients occasionally turn to each other
     // and play a short talking animation so the queue feels alive. Only the
     // back clients (slot >= 1) chat; the front client stays focused on the
@@ -40,18 +45,20 @@ export default class ClientQueue {
   }
 
   update(deltaMs) {
-    // Only the front client loses patience — back clients wait without
-    // draining so they don't expire while stuck behind a slow pour.
+    // Patience drain — disabled in Tanda where clients only leave when served.
     const front = this.clients[0];
-    if (front) {
+    if (front && !this.noPatienceDecay) {
       const expired = front.updatePatience(deltaMs);
       if (expired) {
         this.removeClient(0, /* angry */ true);
       }
     }
 
-    // Spawn into rear slots if there's space and the cooldown has elapsed.
-    if (this.clients.length < C.queueSize && this.scene.time.now >= this.nextSpawnAt) {
+    // Spawn into rear slots if there's space, cooldown elapsed, and the
+    // total-spawn cap (if any) has not been reached.
+    const canSpawn = this.maxTotalSpawns == null
+      || this.totalSpawned < this.maxTotalSpawns;
+    if (canSpawn && this.clients.length < C.queueSize && this.scene.time.now >= this.nextSpawnAt) {
       this.spawnClient();
       this.nextSpawnAt =
         this.scene.time.now +
@@ -59,6 +66,23 @@ export default class ClientQueue {
     }
 
     this.updateChatter(deltaMs);
+  }
+
+  /**
+   * True when the queue has spawned its full roster AND the visible queue
+   * is empty — i.e. every scheduled client has been served. Used by
+   * GameScene for Tanda's "clear the bar" win condition. Returns false
+   * for queues with no spawn cap (infinite spawn loop never exhausts).
+   */
+  isExhausted() {
+    if (this.maxTotalSpawns == null) return false;
+    return this.totalSpawned >= this.maxTotalSpawns && this.clients.length === 0;
+  }
+
+  /** Number of clients still to be served (in-queue + not-yet-spawned). */
+  remaining() {
+    if (this.maxTotalSpawns == null) return this.clients.length;
+    return Math.max(0, this.maxTotalSpawns - this.totalSpawned) + this.clients.length;
   }
 
   /**
@@ -113,6 +137,7 @@ export default class ClientQueue {
     const client = new Client(this.scene, spawnX, spawnY, wantedStyle);
     this.clients.push(client);
     client.applyQueueSlot(slot, this.anchorX);
+    this.totalSpawned += 1;
   }
 
   pickRandomAvailableStyle() {

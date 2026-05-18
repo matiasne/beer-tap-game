@@ -94,7 +94,22 @@ export default class GameScene extends Phaser.Scene {
       // it entirely so no one ever shows up to be served — pouring is the
       // whole gameplay loop.
       if (!this.mode.noClients) {
-        const queue = new ClientQueue(this, x, [style]);
+        // Tanda: split a fixed-per-level client roster evenly across the
+        // 4 active taps. Each queue gets its share via maxTotalSpawns.
+        const queueOpts = {};
+        if (this.mode.fixedClientCount) {
+          const totalForLevel = this.mode.fixedClientCount(this.level);
+          // Distribute across active taps; remainder goes to the lower-index taps.
+          const taps = activeTapIndices.length;
+          const base = Math.floor(totalForLevel / taps);
+          const remainder = totalForLevel % taps;
+          const slotPos = activeTapIndices.indexOf(i);
+          queueOpts.maxTotalSpawns = base + (slotPos < remainder ? 1 : 0);
+        }
+        if (this.mode.clientsLeaveOnlyWhenServed) {
+          queueOpts.noPatienceDecay = true;
+        }
+        const queue = new ClientQueue(this, x, [style], queueOpts);
         queue.onAngryLeave(() => {
           this.score += GAME_CONFIG.clients.angryPenalty;
           // Survival: each angry leave also costs a life.
@@ -181,14 +196,36 @@ export default class GameScene extends Phaser.Scene {
       color: '#8a7a55',
     });
     this.livesGfx = this.add.graphics();
-    if (this.mode.livesOverride == null) {
-      // Classic + other modes: hide lives, show target.
+    // Tanda HUD — clients-remaining counter replaces OBJETIVO.
+    this.clientsLabel = this.add.text(20, 90, 'CLIENTES', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '16px',
+      color: '#8a7a55',
+    });
+    this.clientsText = this.add.text(130, 88, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '22px',
+      color: '#6acc4a',
+    });
+
+    if (this.mode.livesOverride != null) {
+      // Survival: hide target + clients, show lives.
+      this.targetLabel.setVisible(false);
+      this.targetText.setVisible(false);
+      this.clientsLabel.setVisible(false);
+      this.clientsText.setVisible(false);
+    } else if (this.mode.clientsLeaveOnlyWhenServed) {
+      // Tanda: hide target + lives, show clients-remaining.
+      this.targetLabel.setVisible(false);
+      this.targetText.setVisible(false);
       this.livesLabel.setVisible(false);
       this.livesGfx.setVisible(false);
     } else {
-      // Survival: hide target row, show lives.
-      this.targetLabel.setVisible(false);
-      this.targetText.setVisible(false);
+      // Classic + Speed Run: hide lives + clients, show target.
+      this.livesLabel.setVisible(false);
+      this.livesGfx.setVisible(false);
+      this.clientsLabel.setVisible(false);
+      this.clientsText.setVisible(false);
     }
     // Combo display — bottom-left, big, with a row of stars below the
     // label showing progress toward the cap. Only visible when streak ≥ 2.
@@ -306,7 +343,66 @@ export default class GameScene extends Phaser.Scene {
       if (this.taps[i]) this.updateTap(i, delta);
     }
 
+    // Tanda: when every queue with a fixed roster has been cleared, end
+    // the level early as a win.
+    if (
+      this.mode.clientsLeaveOnlyWhenServed &&
+      !this.timeUp &&
+      this.queues.every((q) => !q || q.isExhausted())
+    ) {
+      this.handleBarCleared();
+    }
+
     this.refreshHud();
+  }
+
+  /**
+   * Tanda win: every fixed-roster queue has been served. End the level as
+   * passed (regardless of score-vs-target), advance to next level.
+   */
+  handleBarCleared() {
+    if (this.timeUp) return;
+    this.timeUp = true;
+
+    // Stop pours + force-release any in-progress glass.
+    for (let i = 0; i < 4; i++) {
+      const tap = this.taps[i];
+      const glass = this.glasses[i];
+      if (tap?.isPouring) tap.stopPour();
+      if (glass && !glass.released) {
+        this.idleMs[i] = null;
+        this.idleBars[i]?.setVisible(false);
+        glass.releaseDown();
+        this.glasses[i] = null;
+      }
+    }
+
+    const banner = this.add.text(this.scale.width / 2, this.scale.height / 2, '¡BARRA LIMPIA!', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '120px',
+      color: '#6acc4a',
+      stroke: '#1a120a',
+      strokeThickness: 12,
+    });
+    banner.setOrigin(0.5, 0.5);
+    banner.setAlpha(0);
+    this.tweens.add({
+      targets: banner,
+      alpha: 1,
+      scale: { from: 0.6, to: 1 },
+      duration: 280,
+      ease: 'Back.out',
+    });
+
+    this.time.delayedCall(1400, () => {
+      this.scene.start('LevelResultScene', {
+        level: this.level,
+        score: this.score,
+        target: this.target,
+        passed: true,
+        mode: this.modeId,
+      });
+    });
   }
 
   /**
@@ -363,9 +459,15 @@ export default class GameScene extends Phaser.Scene {
         });
         return;
       }
-      // Speed Run is a one-shot run — never "passes" to a next level.
-      // Combo Master + Classic use the score-vs-target check.
-      const passed = this.mode.noClients ? false : (this.score >= this.target);
+      // Per-mode pass criterion:
+      //   Speed Run (noClients) — one-shot, never passes
+      //   Tanda (clientsLeaveOnlyWhenServed) — must clear the bar, not score
+      //                                       (handleBarCleared handles success)
+      //   Classic — score >= target
+      let passed;
+      if (this.mode.noClients) passed = false;
+      else if (this.mode.clientsLeaveOnlyWhenServed) passed = false;
+      else passed = this.score >= this.target;
       this.scene.start('LevelResultScene', {
         level: this.level,
         score: this.score,
@@ -563,7 +665,7 @@ export default class GameScene extends Phaser.Scene {
         const totalWithCombo = Math.round(baseScore * multiplier);
         comboBonus = totalWithCombo - baseScore;
         score = totalWithCombo;
-        comboLabel = `PERFECTA x${this.combo} (${multiplier}×)`;
+        comboLabel = `PERFECT x${this.combo} (${multiplier}×)`;
         // Pop the combo display on growth so the player feels the streak.
         if (this.comboGroup) {
           this.tweens.killTweensOf(this.comboGroup);
@@ -591,7 +693,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.score += score;
-    this.showFeedback(comboLabel, quality.color, glass.x, glass.y - 70, true);
+    this.showFeedback(comboLabel, quality.color, glass.x, glass.y - 70, true, quality.tier);
 
     // Overflow path: penalty applied, no client served, no glass swap.
     // The bartender dunks the same glass and brings it back empty.
@@ -600,6 +702,30 @@ export default class GameScene extends Phaser.Scene {
       this.idleMs[i] = null;
       glass.dumpAndReset();
       return;
+    }
+
+    // Tanda mode: clients only leave when served well. If the pour misses
+    // (style mismatch OR score below "decent" / one preference window),
+    // dump the glass and keep the client waiting. Score still applies so
+    // bad attempts can hurt the final tally.
+    if (this.mode.clientsLeaveOnlyWhenServed && queue) {
+      const acceptable = !styleMismatch && score >= 100;
+      if (!acceptable) {
+        if (styleMismatch) {
+          this.showFeedback(
+            `¡quería ${frontWantedStyle.label}!`,
+            '#ff7a4a',
+            glass.x,
+            glass.y - 30,
+          );
+        } else {
+          this.showFeedback('no la quiso', '#ff7a4a', glass.x, glass.y - 30);
+        }
+        this.refreshHud();
+        this.idleMs[i] = null;
+        glass.dumpAndReset();
+        return;
+      }
     }
 
     // Style mismatch: client took the glass but won't tip you for it.
@@ -690,12 +816,6 @@ export default class GameScene extends Phaser.Scene {
       }
       result = { score, tipMultiplier: ev.tipMultiplier };
     }
-
-    // Combo Master: only perfect pours (score 250) count. Anything else
-    // gets zeroed out, both points and tip.
-    if (this.mode?.onlyPerfectsScore && result.score < 250) {
-      result = { score: 0, tipMultiplier: 0 };
-    }
     return result;
   }
 
@@ -708,49 +828,47 @@ export default class GameScene extends Phaser.Scene {
   pourQualityFor(liquidPct, foamPct, overflow, preference) {
     const s = GAME_CONFIG.scoring;
     if (overflow || liquidPct > 100) {
-      return { label: '¡SE REBALSÓ!', color: '#ff7a4a' };
+      return { label: 'BAD', color: '#ff4a4a', tier: 'bad' };
     }
     if (liquidPct + foamPct < s.wastedBelow) {
-      return { label: 'casi vacío', color: '#888888' };
+      return { label: 'BAD', color: '#ff4a4a', tier: 'bad' };
     }
 
     // No client at the tap — fall back to absolute foam/fill grading.
     if (!preference) {
       if (liquidPct >= 96) {
-        return { label: 'PERFECTA', color: '#ffd93d', perfect: true };
+        return { label: 'PERFECT', color: '#ffd93d', perfect: true, tier: 'perfect' };
       }
-      if (liquidPct >= 90) return { label: 'gran servida', color: '#f2d36b' };
-      if (liquidPct >= 70) return { label: 'buena servida', color: '#cfe8a8' };
-      return { label: 'servida pasable', color: '#cfe8a8' };
+      if (liquidPct >= 90) return { label: 'GREAT', color: '#6acc4a', tier: 'great' };
+      if (liquidPct >= 70) return { label: 'GOOD',  color: '#4abfff', tier: 'good' };
+      return { label: 'BAD', color: '#ff4a4a', tier: 'bad' };
     }
 
     const ev = evaluateAgainstPreference(liquidPct, foamPct, preference);
     if (ev.fillInWindow && ev.foamInWindow) {
-      return { label: 'PERFECT', color: '#ffd93d', perfect: true };
+      return { label: 'PERFECT', color: '#ffd93d', perfect: true, tier: 'perfect' };
     }
 
-    // Choose the worse miss to surface as the primary critique. If both
-    // axes miss, use "wasted" tone; if one matches, name the one that's off.
-    const foamRatio = liquidPct > 1 ? (foamPct / liquidPct) * 100 : 0;
-    if (!ev.fillInWindow && !ev.foamInWindow) {
-      return { label: 'no es su estilo', color: '#e89c6b' };
+    // One window matched, the other slightly off → GREAT
+    // One window matched, the other badly off → GOOD
+    // Both off → BAD (style miss, way under, way over, too foamy, etc.)
+    if (ev.fillInWindow || ev.foamInWindow) {
+      if (ev.matchScore > 0.6) {
+        return { label: 'GREAT', color: '#6acc4a', tier: 'great' };
+      }
+      return { label: 'GOOD', color: '#4abfff', tier: 'good' };
     }
-    if (!ev.fillInWindow) {
-      const tooMuch = liquidPct > preference.fill.fillTarget;
-      return {
-        label: tooMuch ? 'demasiada' : 'muy poca',
-        color: '#f2d36b',
-      };
-    }
-    // foam off
-    const tooFoamy = foamRatio > preference.foam.foamRatioTarget;
-    return {
-      label: tooFoamy ? 'mucha espuma' : 'sin espuma',
-      color: '#f2d36b',
-    };
+    return { label: 'BAD', color: '#ff4a4a', tier: 'bad' };
   }
 
-  showFeedback(text, color, x, y, big = true) {
+  showFeedback(text, color, x, y, big = true, tier = null) {
+    // Tiered feedback (PERFECT/GREAT/GOOD/BAD) gets a richer neon-sign
+    // treatment: bigger font, double-glow border in the tier color, sparkle
+    // pixels at each corner, and a brief pop-in.
+    if (tier) {
+      this.showTieredFeedback(text, color, x, y, tier);
+      return;
+    }
     const t = this.add.text(0, 0, text, {
       fontFamily: FONT_FAMILY,
       fontSize: big ? '24px' : '13px',
@@ -785,6 +903,97 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Neon-sign style "PERFECT / GREAT / GOOD / BAD" feedback. The label
+   * sits in a colored frame with a glow border and sparkle pixel corners,
+   * pops in scale-up + fades up over ~1.6s.
+   */
+  showTieredFeedback(text, hexColor, x, y, tier) {
+    // Parse the hex color into 0xRRGGBB for Graphics calls.
+    const colNum = parseInt(hexColor.replace('#', ''), 16);
+
+    const t = this.add.text(0, 0, text, {
+      fontFamily: FONT_FAMILY,
+      fontSize: '40px',
+      fontStyle: 'bold',
+      color: hexColor,
+      stroke: '#1a120a',
+      strokeThickness: 6,
+    });
+    t.setOrigin(0.5, 0.5);
+
+    const padX = 22;
+    const padY = 10;
+    const boxW = Math.ceil(t.width) + padX * 2;
+    const boxH = Math.ceil(t.height) + padY * 2;
+
+    const box = this.add.graphics();
+    // Outer glow — wide soft halo in the tier color
+    box.fillStyle(colNum, 0.18);
+    box.fillRoundedRect(-boxW / 2 - 10, -boxH / 2 - 10, boxW + 20, boxH + 20, 14);
+    box.fillStyle(colNum, 0.10);
+    box.fillRoundedRect(-boxW / 2 - 18, -boxH / 2 - 18, boxW + 36, boxH + 36, 18);
+    // Dark interior fill
+    box.fillStyle(0x14110f, 0.9);
+    box.fillRoundedRect(-boxW / 2, -boxH / 2, boxW, boxH, 10);
+    // Inner border — thick neon line
+    box.lineStyle(4, colNum, 1);
+    box.strokeRoundedRect(-boxW / 2, -boxH / 2, boxW, boxH, 10);
+    // Outer thin highlight border
+    box.lineStyle(1, 0xffffff, 0.4);
+    box.strokeRoundedRect(-boxW / 2 - 2, -boxH / 2 - 2, boxW + 4, boxH + 4, 12);
+
+    // Sparkle pixels at each corner
+    const sparkles = this.add.graphics();
+    sparkles.fillStyle(colNum, 1);
+    const sparklePositions = [
+      [-boxW / 2 - 6, -boxH / 2 - 6],
+      [ boxW / 2 + 4, -boxH / 2 - 6],
+      [-boxW / 2 - 6,  boxH / 2 + 4],
+      [ boxW / 2 + 4,  boxH / 2 + 4],
+    ];
+    for (const [sx, sy] of sparklePositions) {
+      // 4-pixel plus-sign sparkle
+      sparkles.fillRect(sx, sy, 3, 1);
+      sparkles.fillRect(sx + 1, sy - 1, 1, 3);
+    }
+    sparkles.fillStyle(0xffffff, 0.9);
+    for (const [sx, sy] of sparklePositions) {
+      sparkles.fillRect(sx + 1, sy, 1, 1);
+    }
+
+    const container = this.add.container(x, y, [box, sparkles, t]);
+    container.setDepth(50);
+
+    // Pop-in scale tween
+    container.setScale(0.5);
+    this.tweens.add({
+      targets: container,
+      scale: 1,
+      duration: 220,
+      ease: 'Back.out',
+    });
+    // Sparkle pulse — gentle alpha wobble while visible
+    this.tweens.add({
+      targets: sparkles,
+      alpha: { from: 1, to: 0.45 },
+      yoyo: true,
+      repeat: -1,
+      duration: 400,
+      ease: 'Sine.inOut',
+    });
+    // Float up + fade out
+    this.tweens.add({
+      targets: container,
+      y: y - 60,
+      alpha: 0,
+      duration: 1600,
+      delay: 220,
+      ease: 'Cubic.out',
+      onComplete: () => container.destroy(),
+    });
+  }
+
   refreshHud() {
     const padded = String(Math.max(0, this.score)).padStart(6, '0');
     const sign = this.score < 0 ? '-' : ' ';
@@ -811,6 +1020,18 @@ export default class GameScene extends Phaser.Scene {
     // Hearts row (Survival only)
     if (this.mode?.livesOverride != null && this.livesGfx) {
       this.drawLives();
+    }
+    // Clients-remaining counter (Tanda only)
+    if (this.mode?.clientsLeaveOnlyWhenServed && this.clientsText) {
+      let total = 0;
+      let remaining = 0;
+      for (const q of this.queues) {
+        if (!q) continue;
+        total += q.maxTotalSpawns ?? 0;
+        remaining += q.remaining();
+      }
+      const served = total - remaining;
+      this.clientsText.setText(`${served}/${total}`);
     }
   }
 

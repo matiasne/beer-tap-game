@@ -46,7 +46,7 @@ export const GAME_CONFIG = {
   // Glass cycle timings (ms)
   glassReleaseDuration: 450,
   glassSpawnDelay: 250,
-  glassReleaseAfterIdleMs: 3000, // auto-release the glass after the tap has been off this long
+  glassReleaseAfterIdleMs: 2000, // auto-release the glass after the tap has been off this long
 
   // Clients
   clients: {

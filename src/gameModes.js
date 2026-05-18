@@ -15,8 +15,12 @@
 //   livesOverride — number of lives for survival mode, or null = no limit
 //   infiniteLevels — true if the run never advances past level 1's intro
 //                    (i.e. survival keeps you in one ongoing level)
-//   onlyPerfectsScore — true if non-perfect pours score 0
-//   noClients    — true to skip the client preferences / tip system
+//   noTimer       — true if the level has no timer (Survival)
+//   noClients     — true to skip the client preferences / tip system
+//   fixedClientCount      — function(level) → number of clients per level
+//                           (Tanda: must clear a fixed roster). null otherwise.
+//   clientsLeaveOnlyWhenServed — true to disable patience-decay angry-leave;
+//                                bad pours dump the glass, the client stays
 
 export const GAME_MODES = [
   {
@@ -34,8 +38,10 @@ export const GAME_MODES = [
     timeOverrideSec: null,
     livesOverride: null,
     infiniteLevels: false,
-    onlyPerfectsScore: false,
+    noTimer: false,
     noClients: false,
+    fixedClientCount: null,
+    clientsLeaveOnlyWhenServed: false,
   },
   {
     id: 'speedrun',
@@ -52,8 +58,10 @@ export const GAME_MODES = [
     timeOverrideSec: 30,
     livesOverride: null,
     infiniteLevels: false,
-    onlyPerfectsScore: false,
+    noTimer: false,
     noClients: true,
+    fixedClientCount: null,
+    clientsLeaveOnlyWhenServed: false,
   },
   {
     id: 'survival',
@@ -70,18 +78,19 @@ export const GAME_MODES = [
     timeOverrideSec: null,
     livesOverride: 3,
     infiniteLevels: true,
-    noTimer: true, // no countdown — the run only ends via lives or quit
-    onlyPerfectsScore: false,
+    noTimer: true,
     noClients: false,
+    fixedClientCount: null,
+    clientsLeaveOnlyWhenServed: false,
   },
   {
-    id: 'combo',
-    label: 'COMBO',
-    tagline: 'solo las perfectas suman — un error y se rompe',
+    id: 'tanda',
+    label: 'TANDA',
+    tagline: 'limpiá la barra antes de que se acabe el tiempo',
     details: [
-      'únicamente servidas perfectas dan puntos',
-      'cualquier error rompe el combo',
-      'apuntá a la racha más larga',
+      'cantidad fija de clientes por nivel',
+      'los clientes se van solo si los servís bien',
+      'una mala servida tira la cerveza',
     ],
     color: 0x6acc4a,
     classic: false,
@@ -89,8 +98,11 @@ export const GAME_MODES = [
     timeOverrideSec: null,
     livesOverride: null,
     infiniteLevels: false,
-    onlyPerfectsScore: true,
+    noTimer: false,
     noClients: false,
+    // 6 clients on level 1, +1 each level (level 1 = 6, level 2 = 7, …)
+    fixedClientCount: (level) => 5 + level,
+    clientsLeaveOnlyWhenServed: true,
   },
 ];
 

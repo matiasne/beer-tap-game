@@ -170,12 +170,11 @@ export function drawGlass(ctx, ox, oy, shape) {
     rect(cx - cavityHalf - 1, innerTop - 3, cavityHalf * 2 + 2, 1);
   }
 
-  // Row -2: rim ears (corners outside the lip) + outline shoulders that
-  // connect the back arc down to the front lip + bright lip across the
-  // full width.
+  // Row -2: outline shoulders that connect the back arc down to the front
+  // lip + bright lip across the full width. The "rim ears" (single
+  // pixels at the far outer corners) used to sit here, but skipping them
+  // softens the top-left and top-right corners into a 1-px rounded step.
   setFill(outline);
-  rect(cx - topHalf - 2, innerTop - 2, 1, 1);             // far-left ear
-  rect(cx + topHalf + 1, innerTop - 2, 1, 1);             // far-right ear
   // Outline shoulders connecting the back arc to the side walls:
   if (topHalf >= 4) {
     const shoulderL = cx - cavityHalf - 1;
@@ -213,9 +212,12 @@ export function drawGlass(ctx, ox, oy, shape) {
   rect(cx + topHalf - Math.min(3, topHalf), innerTop - 1, Math.min(3, topHalf), 1);
 
   // --- Bottom — thick base with proper bevel + ground shadow ---
+  // Contact-line outline is 1 px shorter on each side than the wall outlines
+  // above it, so the bottom-left and bottom-right corners read as a 1-px
+  // rounded step rather than a hard 90° junction.
   const botHalf = halfByRow[innerH - 1];
   setFill(outline);
-  rect(cx - botHalf - 1, innerBottom, botHalf * 2 + 2, 1);
+  rect(cx - botHalf, innerBottom, botHalf * 2, 1);
 
   if (!shape.stem && innerBottom + 1 < H - 1) {
     setFill(baseShadow, 0.7);
@@ -226,9 +228,11 @@ export function drawGlass(ctx, ox, oy, shape) {
     }
     if (innerBottom + 3 < H) {
       setFill(outlineDark, 0.35);
-      rect(cx - botHalf - 1, innerBottom + 3, botHalf * 2 + 2, 1);
+      rect(cx - botHalf, innerBottom + 3, botHalf * 2, 1);
     }
-    setFill(outlineDark, 0.6);
+    // Soft inner-corner pixels — anchor the wall outline visually to the
+    // base without the hard square junction.
+    setFill(outlineDark, 0.4);
     rect(cx - botHalf - 1, innerBottom + 1, 1, 1);
     rect(cx + botHalf, innerBottom + 1, 1, 1);
   }
@@ -310,4 +314,345 @@ export function drawGlass(ctx, ox, oy, shape) {
     setFill(outlineDark, 0.4);
     rect(cx - footHalf - 1, H - 1, footHalf * 2 + 2, 1);
   }
+
+  // --- Per-shape label / decor (procedural) ---
+  // Drawn AFTER the glass body so the label sits on top of the wall.
+  // Each shape gets a small recognizable badge at a sensible height — sized
+  // and shaped after the reference image's glass family (Craftsman shield,
+  // Edelweiss sun, Leffe cathedral, CITRA hops leaf, etc.). At our 128-px
+  // source width these are stylized monograms/icons rather than legible text.
+  const labelY = innerTop + Math.floor(innerH * 0.45);
+  drawGlassDecor(ctx, ox, oy, shape, cx, labelY, halfByRow);
+}
+
+function drawGlassDecor(ctx, ox, oy, shape, cx, labelY, halfByRow) {
+  const rect = (x, y, w, h) => ctx.fillRect(ox + x, oy + y, w, h);
+  const setFill = (color, alpha = 1) => { ctx.fillStyle = rgba(color, alpha); };
+
+  // Get the inner half-width at the label row so labels never poke past
+  // the glass walls. The inner area starts at row 0 and ends at innerH-1.
+  const innerH = shape.innerHeightPx;
+  const innerTop = shape.topPaddingPx;
+  const labelRowInGlass = Math.max(0, Math.min(innerH - 1, labelY - innerTop));
+  const halfAtLabel = halfByRow[labelRowInGlass] ?? halfByRow[0];
+
+  switch (shape.key) {
+    case 'pint':
+      drawShieldBadge(setFill, rect, cx, labelY, halfAtLabel, {
+        plateColor: 0xe8d9a8,
+        plateShadow: 0xa48030,
+        plateBorder: 0x4a3010,
+        glyphColor: 0x3a1408,
+        glyph: 'A', // CRAFTSMAN ALE monogram
+      });
+      break;
+    case 'pilsner':
+      // Kolsch / tall pilsner — small cathedral crest near the rim.
+      drawTinyCrest(setFill, rect, cx, labelY - 20, halfAtLabel);
+      break;
+    case 'mug':
+      // Stein gets a dimpled wall pattern AND a small coat-of-arms square.
+      drawMugDimples(setFill, rect, cx, labelY, halfAtLabel, halfByRow, innerTop, innerH);
+      drawShieldBadge(setFill, rect, cx, labelY + 6, halfAtLabel, {
+        plateColor: 0xc4a020,
+        plateShadow: 0x8a6010,
+        plateBorder: 0x4a3010,
+        glyphColor: 0x6a1010,
+        glyph: '+', // simple cross / coat-of-arms hint
+      });
+      break;
+    case 'tulip':
+      // Edelweiss-style sun/flower badge with bright yellow halo.
+      drawSunBadge(setFill, rect, cx, labelY, halfAtLabel);
+      break;
+    case 'snifter':
+      // Leffe-style cathedral shield (tall pointed shield).
+      drawCathedralShield(setFill, rect, cx, labelY - 4, halfAtLabel);
+      break;
+    case 'weizen':
+      // Wheat icon — tall thin label band with a wheat motif.
+      drawWheatBadge(setFill, rect, cx, labelY, halfAtLabel);
+      break;
+    case 'goblet':
+      // Hint of gold filigree on the bowl (already has ornate stem).
+      drawGoldFiligree(setFill, rect, cx, labelY - 8, halfAtLabel);
+      break;
+    case 'flute':
+      // CITRA-style green hops circle.
+      drawHopsBadge(setFill, rect, cx, labelY, halfAtLabel);
+      break;
+  }
+}
+
+/**
+ * Shield-shaped badge — vintage Craftsman Ale / coat-of-arms style.
+ * `glyph` is a single-character monogram drawn pixel-art style.
+ */
+function drawShieldBadge(setFill, rect, cx, cy, maxHalf, opts) {
+  const { plateColor, plateShadow, plateBorder, glyphColor, glyph } = opts;
+  // Shield dimensions — capped by glass half-width.
+  const halfW = Math.max(8, Math.min(18, maxHalf - 4));
+  const h = Math.round(halfW * 1.3);
+  const top = cy - Math.floor(h / 2);
+
+  // Shield body: rectangle with pointed bottom (1-px stepped triangle).
+  // Top rectangle portion
+  const rectH = Math.floor(h * 0.7);
+  setFill(plateColor);
+  rect(cx - halfW, top, halfW * 2, rectH);
+  // Pointed bottom — narrows 1px each row
+  const pointH = h - rectH;
+  for (let i = 0; i < pointH; i++) {
+    const inset = Math.round((i / Math.max(1, pointH - 1)) * (halfW - 1));
+    setFill(plateColor);
+    rect(cx - halfW + inset, top + rectH + i, (halfW - inset) * 2, 1);
+  }
+  // Border — outline rectangle + pointed bottom outline
+  setFill(plateBorder);
+  rect(cx - halfW - 1, top, 1, rectH);
+  rect(cx + halfW, top, 1, rectH);
+  rect(cx - halfW, top - 1, halfW * 2, 1);
+  for (let i = 0; i < pointH; i++) {
+    const inset = Math.round((i / Math.max(1, pointH - 1)) * (halfW - 1));
+    rect(cx - halfW + inset - 1, top + rectH + i, 1, 1);
+    rect(cx + halfW - inset, top + rectH + i, 1, 1);
+  }
+  // Bottom point cap
+  rect(cx, top + h, 1, 1);
+  // Top highlight + shadow
+  setFill(plateShadow, 0.8);
+  rect(cx - halfW + 1, top + rectH - 2, halfW * 2 - 2, 2);
+  setFill(0xffffff, 0.35);
+  rect(cx - halfW + 2, top + 1, halfW * 2 - 4, 1);
+
+  // Monogram glyph in the upper center
+  const glyphX = cx;
+  const glyphY = top + Math.floor(rectH * 0.45);
+  drawGlyph(setFill, rect, glyphX, glyphY, glyph, glyphColor);
+}
+
+/** 5×7 pixel-art glyph for a single character at (cx, cy). */
+function drawGlyph(setFill, rect, cx, cy, ch, color) {
+  // Tiny 5×5 patterns for the few glyphs we use.
+  const patterns = {
+    'A': [
+      ' XXX ',
+      'X   X',
+      'X   X',
+      'XXXXX',
+      'X   X',
+    ],
+    '+': [
+      '  X  ',
+      '  X  ',
+      'XXXXX',
+      '  X  ',
+      '  X  ',
+    ],
+  };
+  const p = patterns[ch];
+  if (!p) return;
+  setFill(color);
+  for (let r = 0; r < p.length; r++) {
+    for (let c = 0; c < p[r].length; c++) {
+      if (p[r][c] !== ' ') {
+        rect(cx - 2 + c, cy - 2 + r, 1, 1);
+      }
+    }
+  }
+}
+
+/** Tiny crest icon for Kolsch glasses — 2 little gothic spires. */
+function drawTinyCrest(setFill, rect, cx, cy, maxHalf) {
+  if (maxHalf < 8) return;
+  setFill(0x8a3a3a);
+  rect(cx - 6, cy + 2, 12, 6);
+  setFill(0xc4a020);
+  rect(cx - 6, cy + 2, 12, 2);
+  // Two pointed roofs
+  setFill(0x6a1010);
+  rect(cx - 5, cy, 4, 2);
+  rect(cx + 1, cy, 4, 2);
+  rect(cx - 4, cy - 2, 2, 2);
+  rect(cx + 2, cy - 2, 2, 2);
+  rect(cx - 3, cy - 4, 1, 2); // left spire
+  rect(cx + 3, cy - 4, 1, 2); // right spire
+  setFill(0x4a0808);
+  rect(cx - 6, cy + 8, 12, 1);
+}
+
+/** Mug dimples — repeating diamond highlights across the visible wall. */
+function drawMugDimples(setFill, rect, cx, cy, halfAtLabel, halfByRow, innerTop, innerH) {
+  // Diamond grid — every ~12 src px, offset every other row.
+  // Each dimple is a 4×3 highlight + 1 px darker bottom edge.
+  const startRow = Math.floor(innerH * 0.15);
+  const endRow = Math.floor(innerH * 0.85);
+  let rowIdx = 0;
+  for (let r = startRow; r < endRow; r += 14) {
+    const halfPx = halfByRow[r];
+    if (halfPx < 8) continue;
+    const offset = (rowIdx % 2) * 6;
+    for (let x = -halfPx + 6 + offset; x < halfPx - 6; x += 12) {
+      // Skip the center column where the label/badge sits.
+      if (Math.abs(x) < 8 && Math.abs(innerTop + r - cy) < 16) continue;
+      setFill(0xffffff, 0.18);
+      rect(cx + x, innerTop + r, 4, 2);
+      setFill(0xffffff, 0.4);
+      rect(cx + x + 1, innerTop + r, 2, 1);
+      setFill(0x000000, 0.18);
+      rect(cx + x, innerTop + r + 2, 4, 1);
+    }
+    rowIdx++;
+  }
+}
+
+/** Edelweiss-style sun/flower — circular badge with petals + center dot. */
+function drawSunBadge(setFill, rect, cx, cy, maxHalf) {
+  if (maxHalf < 8) return;
+  const r = Math.min(10, maxHalf - 4);
+  // Sun disc
+  setFill(0xfff080);
+  // Approximate circle with row-by-row math.
+  for (let dy = -r; dy <= r; dy++) {
+    const span = Math.round(Math.sqrt(r * r - dy * dy));
+    rect(cx - span, cy + dy, span * 2, 1);
+  }
+  // Border
+  setFill(0xc4a020);
+  for (let dy = -r; dy <= r; dy++) {
+    const span = Math.round(Math.sqrt(r * r - dy * dy));
+    rect(cx - span - 1, cy + dy, 1, 1);
+    rect(cx + span, cy + dy, 1, 1);
+  }
+  // Center red dot (Edelweiss "heart")
+  setFill(0xc4202a);
+  rect(cx - 1, cy - 1, 3, 3);
+  // Bright top arc
+  setFill(0xffffff, 0.5);
+  rect(cx - r + 2, cy - r + 1, r - 1, 2);
+  // 4 petal pixels around the edges
+  setFill(0xfff080);
+  rect(cx, cy - r - 2, 1, 1);
+  rect(cx, cy + r + 1, 1, 1);
+  rect(cx - r - 2, cy, 1, 1);
+  rect(cx + r + 1, cy, 1, 1);
+}
+
+/** Cathedral-shield label — vertical shield with a stylized arch. */
+function drawCathedralShield(setFill, rect, cx, cy, maxHalf) {
+  if (maxHalf < 9) return;
+  const halfW = Math.min(12, maxHalf - 3);
+  const h = 22;
+  const top = cy - Math.floor(h / 2);
+  // Body — rectangle with rounded top + pointed bottom
+  setFill(0xc4a020);
+  // Top rectangle
+  rect(cx - halfW, top + 2, halfW * 2, 12);
+  // Rounded top: 2 px corners inset
+  rect(cx - halfW + 1, top, halfW * 2 - 2, 2);
+  // Bottom point
+  for (let i = 0; i < 8; i++) {
+    const inset = Math.round((i / 7) * (halfW - 1));
+    rect(cx - halfW + inset, top + 14 + i, (halfW - inset) * 2, 1);
+  }
+  // Border
+  setFill(0x4a3010);
+  rect(cx - halfW - 1, top + 2, 1, 12);
+  rect(cx + halfW, top + 2, 1, 12);
+  rect(cx - halfW + 1, top - 1, halfW * 2 - 2, 1);
+  rect(cx - halfW, top, 1, 2);
+  rect(cx + halfW - 1, top, 1, 2);
+  // Top highlight
+  setFill(0xffeb80, 0.85);
+  rect(cx - halfW + 2, top + 2, halfW * 2 - 4, 2);
+  // Cathedral arch icon — 3 vertical bars with rounded tops
+  setFill(0x4a1010);
+  rect(cx - 4, top + 6, 2, 6);
+  rect(cx - 1, top + 5, 2, 7);
+  rect(cx + 2, top + 6, 2, 6);
+  // Cross on top of center spire
+  rect(cx, top + 3, 1, 2);
+  rect(cx - 1, top + 4, 3, 1);
+}
+
+/** Wheat badge — vertical green oval with wheat strand. */
+function drawWheatBadge(setFill, rect, cx, cy, maxHalf) {
+  if (maxHalf < 8) return;
+  const halfW = Math.min(10, maxHalf - 3);
+  const h = 20;
+  const top = cy - Math.floor(h / 2);
+  // Cream background pill
+  setFill(0xf2e8c4);
+  rect(cx - halfW, top + 2, halfW * 2, h - 4);
+  rect(cx - halfW + 1, top, halfW * 2 - 2, 2);
+  rect(cx - halfW + 1, top + h - 2, halfW * 2 - 2, 2);
+  // Border
+  setFill(0x6a4828);
+  rect(cx - halfW - 1, top + 2, 1, h - 4);
+  rect(cx + halfW, top + 2, 1, h - 4);
+  rect(cx - halfW + 1, top - 1, halfW * 2 - 2, 1);
+  rect(cx - halfW + 1, top + h, halfW * 2 - 2, 1);
+  // Wheat stalk down the center — vertical line with paired grain ovals
+  setFill(0xc4a020);
+  rect(cx, top + 3, 1, h - 6);
+  // Grain pairs (4 levels)
+  for (let i = 0; i < 4; i++) {
+    const gy = top + 4 + i * 3;
+    rect(cx - 3, gy, 2, 2);
+    rect(cx + 2, gy, 2, 2);
+    setFill(0xffeb80, 0.85);
+    rect(cx - 3, gy, 1, 1);
+    rect(cx + 2, gy, 1, 1);
+    setFill(0xc4a020);
+  }
+}
+
+/** Gold filigree hint on the goblet bowl — small ornate flourish. */
+function drawGoldFiligree(setFill, rect, cx, cy, maxHalf) {
+  if (maxHalf < 6) return;
+  setFill(0xc4a020);
+  // Center diamond
+  rect(cx - 1, cy - 2, 3, 1);
+  rect(cx - 2, cy - 1, 5, 1);
+  rect(cx - 1, cy, 3, 1);
+  // Side flourishes
+  rect(cx - 6, cy - 1, 3, 1);
+  rect(cx + 4, cy - 1, 3, 1);
+  rect(cx - 7, cy, 2, 1);
+  rect(cx + 6, cy, 2, 1);
+  // Bright highlight
+  setFill(0xffd040);
+  rect(cx, cy - 1, 1, 1);
+  rect(cx - 5, cy - 1, 1, 1);
+  rect(cx + 5, cy - 1, 1, 1);
+}
+
+/** Green hops circle — CITRA-style label. */
+function drawHopsBadge(setFill, rect, cx, cy, maxHalf) {
+  if (maxHalf < 6) return;
+  const r = Math.min(7, maxHalf - 2);
+  // Green disc
+  setFill(0x2a8a3a);
+  for (let dy = -r; dy <= r; dy++) {
+    const span = Math.round(Math.sqrt(r * r - dy * dy));
+    rect(cx - span, cy + dy, span * 2, 1);
+  }
+  // Border
+  setFill(0x1a4a18);
+  for (let dy = -r; dy <= r; dy++) {
+    const span = Math.round(Math.sqrt(r * r - dy * dy));
+    rect(cx - span - 1, cy + dy, 1, 1);
+    rect(cx + span, cy + dy, 1, 1);
+  }
+  // Highlight
+  setFill(0x6abf60, 0.85);
+  rect(cx - r + 1, cy - r + 1, r - 1, 2);
+  // Hop cone pattern — 3 stacked tiny chevrons
+  setFill(0xc4e8a8);
+  for (let i = 0; i < 3; i++) {
+    rect(cx - 2, cy - 2 + i * 2, 5, 1);
+    rect(cx - 1, cy - 1 + i * 2, 3, 1);
+  }
+  setFill(0x1a4a18);
+  rect(cx, cy + 4, 1, 2); // stem
 }
